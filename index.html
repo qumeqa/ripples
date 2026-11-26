@@ -1,0 +1,1743 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0f0ee">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+  <title>Ripples.js / JavaScript Water Ripple Effect</title>
+  <meta name="description" content="Zero-dependency WebGL 2 water ripple effect for images, picture, video, canvas, and CSS backgrounds. Lazy context creation, auto-pause, and strict CSP support.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Ripples.js — WebGL 2 Water Ripple Effect">
+  <meta property="og:description" content="Zero-dependency WebGL 2 water ripple effect for images, picture, video, canvas, and CSS backgrounds.">
+  <meta property="og:url" content="https://qumeqa.github.io/ripples/">
+  <meta property="og:image" content="https://qumeqa.github.io/ripples/assets/demo.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://qumeqa.github.io/ripples/">
+  <link rel="icon" type="image/png" href="./assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400..600&family=Geist:wght@400..600&display=swap">
+  <style>
+    :root {
+      color-scheme: light dark;
+
+      --radius-panel: 16px;
+      --radius-control: 8px;
+      --radius-pill: 999px;
+      --radius-circle: 50%;
+
+      --bg-light: #f0f0ee;
+      --surface-light: #ffffff;
+      --surface-alt-light: #f4f4f2;
+      --ink-light: #121212;
+      --muted-light: #666662;
+      --accent-light: #121212;
+      --green-light: #15803d;
+      --green-ink-light: #ffffff;
+
+      --bg-dark: #000000;
+      --surface-dark: #1c1c1e;
+      --surface-alt-dark: #262629;
+      --ink-dark: #f5f5f5;
+      --muted-dark: #98989d;
+      --accent-dark: #f5f5f5;
+      --green-dark: #22c55e;
+      --green-ink-dark: #071a0e;
+
+      --caption-ink: #ffffff;
+      --caption-shadow: rgba(0, 0, 0, 0.65);
+      --shadow-tip: rgba(0, 0, 0, 0.32);
+      --shadow-dialog: rgba(0, 0, 0, 0.42);
+      --backdrop: rgba(0, 0, 0, 0.52);
+      --backdrop-clear: rgba(0, 0, 0, 0);
+
+      --bg: var(--bg-light);
+      --surface: var(--surface-light);
+      --surface-alt: var(--surface-alt-light);
+      --ink: var(--ink-light);
+      --muted: var(--muted-light);
+      --accent: var(--accent-light);
+      --green: var(--green-light);
+      --green-ink: var(--green-ink-light);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: var(--bg-dark);
+        --surface: var(--surface-dark);
+        --surface-alt: var(--surface-alt-dark);
+        --ink: var(--ink-dark);
+        --muted: var(--muted-dark);
+        --accent: var(--accent-dark);
+        --green: var(--green-dark);
+        --green-ink: var(--green-ink-dark);
+      }
+    }
+
+    @supports (color: light-dark(white, black)) {
+      :root {
+        --bg: light-dark(var(--bg-light), var(--bg-dark));
+        --surface: light-dark(var(--surface-light), var(--surface-dark));
+        --surface-alt: light-dark(var(--surface-alt-light), var(--surface-alt-dark));
+        --ink: light-dark(var(--ink-light), var(--ink-dark));
+        --muted: light-dark(var(--muted-light), var(--muted-dark));
+        --accent: light-dark(var(--accent-light), var(--accent-dark));
+        --green: light-dark(var(--green-light), var(--green-dark));
+        --green-ink: light-dark(var(--green-ink-light), var(--green-ink-dark));
+      }
+    }
+
+    :root {
+      accent-color: var(--accent);
+      --icon-check: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'></polyline></svg>");
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mono, .section-title {
+      font-family: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* Full-viewport three-panel layout */
+    .app {
+      min-height: 100dvh;
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 10px;
+    }
+
+    @media (min-width: 920px) {
+      .app {
+        height: 100dvh;
+      }
+    }
+
+    @media (max-width: 919px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(340px, 55dvh) auto;
+      }
+    }
+
+    @media (max-width: 679px) {
+      .app {
+        grid-template-rows: auto auto auto;
+      }
+      .stage {
+        aspect-ratio: 1 / 1;
+      }
+    }
+
+    /* Panel 1: top bar */
+    .topbar {
+      grid-column: 1 / -1;
+      background: var(--surface);
+      border-radius: var(--radius-panel);
+      padding: 12px 18px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand {
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      height: 22px;
+      width: auto;
+      display: block;
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .top-center {
+      position: relative;
+      justify-self: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-inline-size: 24px;
+      min-block-size: 32px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+      background: var(--surface-alt);
+      border: 0;
+      border-radius: var(--radius-control);
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+
+    .copy-icon {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 auto;
+      color: var(--muted);
+      transition: color 0.14s ease, transform 0.14s ease;
+    }
+
+    .copy-btn:hover .copy-icon,
+    .copy-row:hover .copy-icon,
+    .copy-block:hover .copy-icon {
+      color: var(--ink);
+    }
+
+    .copy-icon--check {
+      display: none;
+      color: var(--ink);
+    }
+
+    button[command^="--copy"][data-copied] .copy-icon--copy {
+      display: none;
+    }
+
+    button[command^="--copy"][data-copied] .copy-icon--check {
+      display: block;
+    }
+
+    .copy-toast {
+      position: fixed;
+      z-index: 100;
+      inset: auto auto 36px 50%;
+      margin: 0;
+      padding: 8px 16px;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: var(--ink);
+      color: var(--surface);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 10px 28px var(--shadow-tip);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateX(-50%) translateY(8px);
+      transition-property: opacity, transform, display, overlay;
+      transition-duration: 0.2s;
+      transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+      transition-behavior: allow-discrete;
+    }
+
+    .copy-toast:is(:popover-open, .\:popover-open, [data-open]):where(:not([data-closing])) {
+      display: block;
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+
+      @starting-style {
+        opacity: 0;
+        transform: translateX(-50%) translateY(8px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .copy-icon {
+        transition: opacity 0.16s ease;
+      }
+      .copy-toast {
+        transform: translateX(-50%);
+        transition-property: opacity, display, overlay;
+        transition-duration: 0.12s;
+      }
+      .copy-toast:is(:popover-open, .\:popover-open, [data-open]):where(:not([data-closing])) {
+        transform: translateX(-50%);
+        @starting-style {
+          transform: translateX(-50%);
+        }
+      }
+    }
+
+    .top-right {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    @media (max-width: 720px) {
+      .topbar {
+        grid-template-columns: 1fr auto;
+      }
+      .top-center {
+        grid-column: 1 / -1;
+        order: 3;
+      }
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .gh-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-block-size: 32px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+      background: var(--surface-alt);
+      border: 0;
+      border-radius: var(--radius-control);
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: background-color 0.14s, opacity 0.14s;
+    }
+
+    .gh-btn:hover {
+      opacity: 0.84;
+    }
+
+    .gh-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .start-btn {
+      background: var(--green);
+      color: var(--green-ink);
+    }
+
+    /* Panel 2: main media stage */
+    .stage {
+      position: relative;
+      min-height: 0;
+      background: var(--surface);
+      border-radius: var(--radius-panel);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      place-items: center;
+      line-height: 0;
+    }
+
+    .stage .webgl-ripples-wrapper {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .stage img,
+    .stage video,
+    .stage canvas,
+    .stage picture {
+      display: block;
+      max-width: 100%;
+    }
+
+    .stage picture > img {
+      width: 100%;
+      height: auto;
+    }
+
+    .stage-div {
+      width: 100%;
+      height: 100%;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: cover;
+    }
+
+    .stage-caption {
+      position: absolute;
+      left: clamp(16px, 2.5vw, 28px);
+      bottom: clamp(14px, 2.2vw, 24px);
+      z-index: 2;
+      pointer-events: none;
+      line-height: 1.4;
+      color: var(--caption-ink);
+      text-shadow: 0 2px 10px var(--caption-shadow);
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0.92;
+    }
+
+    /* Panel 3: right sidebar controls */
+    .controls {
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--surface);
+      border-radius: var(--radius-panel);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section {
+      display: grid;
+      gap: 10px;
+    }
+
+    .section--padded {
+      padding-top: 10px;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    .formats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    button, .file-btn {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+      background: var(--surface-alt);
+      border: 0;
+      border-radius: var(--radius-control);
+      padding: 8px 12px;
+      cursor: pointer;
+      text-align: center;
+      transition: background-color 0.14s, color 0.14s, opacity 0.14s;
+    }
+
+    button:hover, .file-btn:hover {
+      opacity: 0.84;
+    }
+
+    button:focus-visible,
+    .gh-btn:focus-visible,
+    .file-btn:focus-within,
+    input[type="range"]:focus-visible,
+    input[type="checkbox"]:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    button[aria-pressed="true"] {
+      background: var(--ink);
+      color: var(--surface);
+    }
+
+    .file-btn {
+      color: var(--muted);
+    }
+
+    .file-btn input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .row {
+      display: grid;
+      gap: 2px;
+    }
+
+    .row-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .label-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .row-head output {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+    }
+
+    input[type="range"] {
+      --slider-track-size: 6px;
+      --slider-thumb-size: 16px;
+      --slider-track-radius: var(--radius-pill);
+      --slider-thumb-radius: var(--radius-circle);
+      --slider-track-color: var(--surface-alt);
+      --slider-fill-color: var(--ink);
+      --slider-thumb-color: var(--ink);
+      --slider-direction: to right;
+
+      --attr-min: attr(min type(<number>), 0);
+      --attr-max: attr(max type(<number>), 100);
+      --control-value: attr(value type(<number>), 50);
+      --slider-progress: calc(
+        progress(var(--control-value), var(--attr-min), var(--attr-max)) * 100%
+      );
+
+      appearance: none;
+      inline-size: 100%;
+      block-size: 28px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+
+      &:dir(rtl) {
+        --slider-direction: to left;
+      }
+    }
+
+    @supports not (opacity: progress(1, 0, 100)) {
+      input[type="range"] {
+        --slider-progress: calc(
+          (var(--control-value) - var(--attr-min)) /
+          (var(--attr-max) - var(--attr-min)) * 100%
+        );
+      }
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      block-size: var(--slider-track-size);
+      border: 0;
+      border-radius: var(--slider-track-radius);
+      background: linear-gradient(
+        var(--slider-direction),
+        var(--slider-fill-color) var(--slider-progress),
+        var(--slider-track-color) var(--slider-progress)
+      );
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      inline-size: var(--slider-thumb-size);
+      block-size: var(--slider-thumb-size);
+      margin-block-start: calc((var(--slider-track-size) - var(--slider-thumb-size)) / 2);
+      border: 0;
+      border-radius: var(--slider-thumb-radius);
+      background: var(--slider-thumb-color);
+      transition: transform 0.12s ease;
+    }
+
+    input[type="range"]:hover::-webkit-slider-thumb {
+      transform: scale(1.12);
+    }
+
+    input[type="range"]::-moz-range-track {
+      block-size: var(--slider-track-size);
+      border: 0;
+      border-radius: var(--slider-track-radius);
+      background: var(--slider-track-color);
+    }
+
+    input[type="range"]::-moz-range-progress {
+      block-size: var(--slider-track-size);
+      border-radius: var(--slider-track-radius);
+      background: var(--slider-fill-color);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      inline-size: var(--slider-thumb-size);
+      block-size: var(--slider-thumb-size);
+      border: 0;
+      border-radius: var(--slider-thumb-radius);
+      background: var(--slider-thumb-color);
+      transition: transform 0.12s ease;
+    }
+
+    input[type="range"]:hover::-moz-range-thumb {
+      transform: scale(1.12);
+    }
+
+    input[type="checkbox"] {
+      --checkbox-size: 20px;
+      --checkbox-icon-size: 12px;
+
+      appearance: none;
+      display: inline-grid;
+      place-content: center;
+      inline-size: var(--checkbox-size);
+      aspect-ratio: 1;
+      margin: 0;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: var(--surface-alt);
+      cursor: pointer;
+      transition: background-color 0.14s ease;
+
+      &::before {
+        content: "";
+        inline-size: var(--checkbox-icon-size);
+        aspect-ratio: 1;
+        background-color: var(--surface);
+        mask: var(--icon-check) no-repeat center / contain;
+        scale: 0;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: scale 140ms ease;
+        }
+
+        @media (forced-colors: active) {
+          background-color: CanvasText;
+        }
+      }
+
+      &:checked {
+        background: var(--ink);
+      }
+
+      &:checked::before {
+        scale: 1;
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+
+    .checks-section {
+      gap: 0;
+      padding-top: 0;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .check-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .extra {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .extra button {
+      flex: 1 1 auto;
+    }
+
+    .info-btn {
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1;
+      color: var(--muted);
+      background: var(--surface-alt);
+      border: 0;
+      border-radius: var(--radius-pill);
+    }
+
+    .info-btn:is(:hover, :focus-visible, :interest-source, .interest-source) {
+      color: var(--ink);
+      opacity: 1;
+    }
+
+    [interestfor] {
+      --interest-delay-start: 0.15s;
+      interest-delay-start: var(--interest-delay-start);
+      --interest-delay-end: 0.1s;
+      interest-delay-end: var(--interest-delay-end);
+    }
+
+    .controls:has([interestfor]:is(:interest-source, .interest-source)) [interestfor] {
+      --interest-delay-start: 0s;
+    }
+
+    .tip {
+      max-width: 260px;
+      padding: 9px 12px;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--ink);
+      background: var(--surface-alt);
+      border: 0;
+      border-radius: var(--radius-control);
+      box-shadow: 0 10px 28px var(--shadow-tip);
+    }
+
+    @supports not selector(:popover-open) {
+      [popover]:not(.\:popover-open, [data-open]) {
+        display: none;
+      }
+    }
+
+    .tip:is(:popover-open, .\:popover-open) {
+      display: block;
+    }
+
+    @supports (position-area: block-end) {
+      .tip {
+        inset: auto;
+        margin: 6px 0 0;
+        position-area: block-end span-inline-start;
+        position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+      }
+    }
+
+    @supports not (position-area: block-end) {
+      .tip {
+        position: fixed;
+        inset: auto 20px 20px auto;
+        margin: 0;
+      }
+    }
+
+    /* Docs modal dialog */
+    dialog.docs-dialog {
+      width: min(680px, calc(100vw - 24px));
+      max-height: min(84dvh, 760px);
+      margin: auto;
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-panel);
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 24px 64px var(--shadow-dialog);
+      overflow: hidden;
+      opacity: 0;
+      transition-property: opacity, transform, display, overlay;
+      transition-duration: 0.24s;
+      transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+      transition-behavior: allow-discrete;
+
+      @media (prefers-reduced-motion: no-preference) {
+        transform: scale(0.95) translateY(6px);
+      }
+    }
+
+    dialog.docs-dialog[open] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    dialog.docs-dialog[open]:where(:not([data-closing])) {
+      opacity: 1;
+
+      @starting-style {
+        opacity: 0;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        transform: scale(1) translateY(0);
+
+        @starting-style {
+          transform: scale(0.95) translateY(6px);
+        }
+      }
+
+      &::backdrop {
+        background-color: var(--backdrop);
+        backdrop-filter: blur(4px);
+
+        @starting-style {
+          background-color: var(--backdrop-clear);
+          backdrop-filter: blur(0px);
+        }
+      }
+    }
+
+    dialog.docs-dialog:modal {
+      overscroll-behavior: contain;
+    }
+
+    dialog.docs-dialog::backdrop {
+      overflow: hidden;
+      overscroll-behavior: contain;
+      background-color: var(--backdrop-clear);
+      backdrop-filter: blur(0px);
+      transition-property: background-color, backdrop-filter, display, overlay;
+      transition-duration: 0.24s;
+      transition-timing-function: ease-out;
+      transition-behavior: allow-discrete;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      dialog.docs-dialog,
+      dialog.docs-dialog::backdrop {
+        transition-duration: 0.1s;
+      }
+    }
+
+    .docs-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 20px;
+      background: var(--surface);
+    }
+
+    .docs-head h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .dialog-close {
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-control);
+      background: var(--surface-alt);
+      color: var(--ink);
+    }
+
+    .dialog-close svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .docs-body {
+      padding: 4px 20px 20px;
+      overflow-y: auto;
+      display: grid;
+      gap: 18px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .docs-block {
+      display: grid;
+      gap: 8px;
+    }
+
+    .docs-block h2 {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    .cmd-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .copy-row,
+    .copy-block {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: var(--radius-control);
+      background: var(--surface-alt);
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .copy-row {
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .copy-block {
+      align-items: flex-start;
+    }
+
+    .copy-row span,
+    .docs-code {
+      min-width: 0;
+      flex: 1 1 auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .docs-code {
+      display: block;
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+
+    .copy-block .copy-icon {
+      margin-top: 2px;
+    }
+
+    .docs-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--surface);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="logo" src="./assets/logo.png" alt="Ripples.js logo" width="22" height="22">
+        <h1>Ripples.js</h1>
+      </div>
+
+      <div class="top-center">
+        <button type="button" class="gh-btn start-btn" command="show-modal" commandfor="start-dialog">Get started</button>
+        <button type="button" class="copy-btn mono" command="--copy" commandfor="npm-cmd">
+          <span id="npm-cmd">npm i ripples-js</span>
+          <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+            <path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+          </svg>
+          <svg class="copy-icon copy-icon--check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="top-right">
+        <span class="muted" id="note" aria-live="polite"></span>
+        <a class="gh-btn" href="https://github.com/qumeqa/ripples" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+          GitHub
+        </a>
+      </div>
+    </header>
+
+    <main class="stage" id="stage" aria-label="Interactive ripple preview"></main>
+
+    <aside class="controls" aria-label="Controls">
+      <section class="section">
+        <h2 class="section-title">Container</h2>
+        <div class="formats" role="group" aria-label="Container element">
+          <button type="button" class="mono" aria-pressed="true" data-mode="img">&lt;img&gt;</button>
+          <button type="button" class="mono" aria-pressed="false" data-mode="picture">&lt;picture&gt;</button>
+          <button type="button" class="mono" aria-pressed="false" data-mode="video">&lt;video&gt;</button>
+          <button type="button" class="mono" aria-pressed="false" data-mode="canvas">&lt;canvas&gt;</button>
+          <button type="button" class="mono" aria-pressed="false" data-mode="div">&lt;div&gt;</button>
+          <label class="file-btn">
+            <input type="file" id="file-input" accept="image/*,video/*">
+            File…
+          </label>
+        </div>
+      </section>
+
+      <section class="section section--padded">
+        <h2 class="section-title">Parameters</h2>
+
+        <div class="row">
+          <div class="row-head">
+            <span class="label-wrap">
+              <label for="perturbance">Perturbance</label>
+              <button type="button" class="info-btn mono" interestfor="tip-perturbance" popovertarget="tip-perturbance" popovertargetaction="show" aria-label="About Perturbance">i</button>
+              <div id="tip-perturbance" class="tip" popover="hint">Strength of wave refraction. Set to 0 to disable distortion.</div>
+            </span>
+            <output class="mono" for="perturbance" id="val-perturbance">0.05</output>
+          </div>
+          <input type="range" id="perturbance" min="0" max="0.1" step="0.005" value="0.05">
+        </div>
+
+        <div class="row">
+          <div class="row-head">
+            <span class="label-wrap">
+              <label for="dropRadius">Drop radius</label>
+              <button type="button" class="info-btn mono" interestfor="tip-dropRadius" popovertarget="tip-dropRadius" popovertargetaction="show" aria-label="About Drop radius">i</button>
+              <div id="tip-dropRadius" class="tip" popover="hint">Radius in pixels of ripples created by pointer movement and clicks.</div>
+            </span>
+            <output class="mono" for="dropRadius" id="val-dropRadius">40</output>
+          </div>
+          <input type="range" id="dropRadius" min="10" max="100" step="1" value="40">
+        </div>
+
+        <div class="row">
+          <div class="row-head">
+            <span class="label-wrap">
+              <label for="damping">Damping</label>
+              <button type="button" class="info-btn mono" interestfor="tip-damping" popovertarget="tip-damping" popovertargetaction="show" aria-label="About Damping">i</button>
+              <div id="tip-damping" class="tip" popover="hint">Wave decay factor. Higher values let ripples travel longer.</div>
+            </span>
+            <output class="mono" for="damping" id="val-damping">0.975</output>
+          </div>
+          <input type="range" id="damping" min="0.85" max="0.998" step="0.001" value="0.975">
+        </div>
+
+        <div class="row">
+          <div class="row-head">
+            <span class="label-wrap">
+              <label for="speed">Speed</label>
+              <button type="button" class="info-btn mono" interestfor="tip-speed" popovertarget="tip-speed" popovertargetaction="show" aria-label="About Speed">i</button>
+              <div id="tip-speed" class="tip" popover="hint">Wave simulation speed multiplier.</div>
+            </span>
+            <output class="mono" for="speed" id="val-speed">1</output>
+          </div>
+          <input type="range" id="speed" min="0.2" max="2.5" step="0.05" value="1">
+        </div>
+
+        <div class="row">
+          <div class="row-head">
+            <span class="label-wrap">
+              <label for="specular">Specular</label>
+              <button type="button" class="info-btn mono" interestfor="tip-specular" popovertarget="tip-specular" popovertargetaction="show" aria-label="About Specular">i</button>
+              <div id="tip-specular" class="tip" popover="hint">Intensity of specular highlights on wave crests.</div>
+            </span>
+            <output class="mono" for="specular" id="val-specular">0.3</output>
+          </div>
+          <input type="range" id="specular" min="0" max="2" step="0.05" value="0.3">
+        </div>
+      </section>
+
+      <section class="section checks-section">
+        <div class="check-row">
+          <label><input type="checkbox" id="interactive" checked> Interactive</label>
+          <button type="button" class="info-btn mono" interestfor="tip-interactive" popovertarget="tip-interactive" popovertargetaction="show" aria-label="About Interactive">i</button>
+          <div id="tip-interactive" class="tip" popover="hint">Enables pointer and touch interaction on the surface.</div>
+        </div>
+        <div class="check-row">
+          <label><input type="checkbox" id="live" checked> Live</label>
+          <button type="button" class="info-btn mono" interestfor="tip-live" popovertarget="tip-live" popovertargetaction="show" aria-label="About Live">i</button>
+          <div id="tip-live" class="tip" popover="hint">Continuously updates texture frames for &lt;video&gt; and &lt;canvas&gt;.</div>
+        </div>
+        <div class="check-row">
+          <label><input type="checkbox" id="autoPause" checked> Auto pause</label>
+          <button type="button" class="info-btn mono" interestfor="tip-autoPause" popovertarget="tip-autoPause" popovertargetaction="show" aria-label="About Auto pause">i</button>
+          <div id="tip-autoPause" class="tip" popover="hint">Sleeps the render loop once ripples settle (5 s).</div>
+        </div>
+      </section>
+
+      <section class="section extra" id="extra">
+        <button type="button" id="btn-drop">Drop</button>
+        <button type="button" id="btn-reset">Reset</button>
+      </section>
+    </aside>
+  </div>
+
+  <dialog id="start-dialog" class="docs-dialog" closedby="any" aria-labelledby="start-title">
+    <div class="docs-head">
+      <h1 id="start-title">Get started</h1>
+      <button type="button" class="dialog-close" commandfor="start-dialog" command="close" aria-label="Close dialog" autofocus>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="docs-body">
+      <div class="docs-block">
+        <h2 class="mono">Install</h2>
+        <div class="cmd-list">
+          <button type="button" class="copy-row mono" command="--copy" commandfor="cmd-npm">
+            <span id="cmd-npm">npm i ripples-js</span>
+            <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+              <path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+            </svg>
+            <svg class="copy-icon copy-icon--check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+            </svg>
+          </button>
+          <button type="button" class="copy-row mono" command="--copy" commandfor="cmd-pnpm">
+            <span id="cmd-pnpm">pnpm add ripples-js</span>
+            <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+              <path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+            </svg>
+            <svg class="copy-icon copy-icon--check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+            </svg>
+          </button>
+          <button type="button" class="copy-row mono" command="--copy" commandfor="cmd-yarn">
+            <span id="cmd-yarn">yarn add ripples-js</span>
+            <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+              <path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+            </svg>
+            <svg class="copy-icon copy-icon--check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="docs-block">
+        <h2 class="mono">CDN</h2>
+        <button type="button" class="copy-block" command="--copy" commandfor="cmd-cdn">
+          <span class="docs-code mono"><code id="cmd-cdn">&lt;script src="https://unpkg.com/ripples-js/dist/ripples.umd.min.js" data-auto-init defer&gt;&lt;/script&gt;</code></span>
+          <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+            <path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+          </svg>
+          <svg class="copy-icon copy-icon--check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="docs-block">
+        <h2 class="mono">HTML</h2>
+        <button type="button" class="copy-block" command="--copy" commandfor="cmd-html">
+          <span class="docs-code mono"><code id="cmd-html">&lt;img src="hero.jpg" data-ripples alt=""&gt;</code></span>
+          <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+            <path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+          </svg>
+          <svg class="copy-icon copy-icon--check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="docs-block">
+        <h2 class="mono">JavaScript</h2>
+        <button type="button" class="copy-block" command="--copy" commandfor="cmd-js">
+          <span class="docs-code mono"><code id="cmd-js">import Ripples from 'ripples-js';
+
+Ripples.init('#hero', {
+  perturbance: 0.05,
+});</code></span>
+          <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+            <path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+          </svg>
+          <svg class="copy-icon copy-icon--check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="docs-foot">
+      <a class="gh-btn" href="https://github.com/qumeqa/ripples#readme" target="_blank" rel="noopener noreferrer">Full README →</a>
+    </div>
+  </dialog>
+
+  <div id="copy-toast" class="copy-toast" popover="manual" role="status"></div>
+
+  <script src="./dist/ripples.umd.min.js"></script>
+  <script>
+    (() => {
+      const ownedTriggers = new Set();
+      function wireHints(root = document) {
+        for (const trigger of root.querySelectorAll('[interestfor]')) {
+          const targetId = trigger.getAttribute('interestfor');
+          const hint = targetId && document.getElementById(targetId);
+          if (!hint || hint.getAttribute('popover') !== 'hint') continue;
+          if (!hint.hasAttribute('role')) hint.setAttribute('role', 'tooltip');
+          const opensOnClick = trigger.getAttribute('popovertarget') === targetId;
+          if (opensOnClick && !trigger.hasAttribute('aria-expanded')) {
+            trigger.setAttribute('aria-expanded', String(hint.matches(':popover-open')));
+            ownedTriggers.add(trigger);
+          }
+        }
+      }
+      wireHints();
+
+      document.addEventListener('toggle', ({ target, newState }) => {
+        if (!target || !target.id) return;
+        const expanded = String(newState === 'open');
+        for (const trigger of document.querySelectorAll(`[interestfor="${CSS.escape(target.id)}"]`)) {
+          if (ownedTriggers.has(trigger)) trigger.setAttribute('aria-expanded', expanded);
+        }
+      }, true);
+
+      const probe = document.createElement('div');
+      probe.popover = 'hint';
+      if (probe.popover !== 'hint') {
+        document.addEventListener('beforetoggle', ({ target, newState }) => {
+          const toggletip = target && target.id && target.getAttribute('popover') === 'hint'
+            && document.querySelector(`[popovertarget="${CSS.escape(target.id)}"]`);
+          if (newState === 'open' && toggletip) target.popover = 'auto';
+        }, true);
+      }
+
+      const copyTimers = new WeakMap();
+      const copyToast = document.getElementById('copy-toast');
+      let toastTimer = null;
+      let lastCopyMessage = '';
+
+      function hideToast() {
+        if (!copyToast) return;
+        if (typeof copyToast.hidePopover === 'function') {
+          try { if (copyToast.matches(':popover-open')) copyToast.hidePopover(); } catch {}
+        }
+        copyToast.removeAttribute('data-open');
+        copyToast.textContent = '';
+      }
+
+      function reportCopy(button, ok) {
+        clearTimeout(copyTimers.get(button));
+        button.removeAttribute('data-copied');
+        button.removeAttribute('data-failed');
+        void button.offsetWidth;
+        button.setAttribute(ok ? 'data-copied' : 'data-failed', '');
+        copyTimers.set(button, setTimeout(() => {
+          button.removeAttribute('data-copied');
+          button.removeAttribute('data-failed');
+        }, 1800));
+
+        if (!copyToast) return;
+        clearTimeout(toastTimer);
+        let message = ok ? 'Copied to clipboard' : 'Copy failed';
+        if (message === lastCopyMessage) message += '\u00A0';
+        lastCopyMessage = message;
+
+        copyToast.removeAttribute('data-closing');
+        copyToast.textContent = '';
+        if (typeof copyToast.showPopover === 'function') {
+          try {
+            if (copyToast.matches(':popover-open')) copyToast.hidePopover();
+            copyToast.showPopover();
+          } catch {
+            copyToast.setAttribute('data-open', '');
+          }
+        } else {
+          copyToast.setAttribute('data-open', '');
+        }
+        requestAnimationFrame(() => { copyToast.textContent = message; });
+
+        toastTimer = setTimeout(async () => {
+          if (!supportsTopLayerExit() && typeof copyToast.hidePopover === 'function') {
+            copyToast.setAttribute('data-closing', '');
+            const animations = copyToast.getAnimations();
+            if (animations.length > 0) {
+              await Promise.race([
+                Promise.allSettled(animations.map((a) => a.finished)),
+                new Promise((r) => setTimeout(r, 600)),
+              ]);
+            }
+            if (!copyToast.hasAttribute('data-closing')) return;
+            copyToast.removeAttribute('data-closing');
+          }
+          hideToast();
+        }, 1800);
+      }
+
+      function legacyCopy(text) {
+        const previousFocus = document.activeElement;
+        const field = Object.assign(document.createElement('textarea'), { value: text });
+        field.setAttribute('readonly', '');
+        field.style.cssText = 'position:fixed;inset-block-start:0;opacity:0';
+        document.body.append(field);
+        field.select();
+        try {
+          return document.execCommand('copy');
+        } finally {
+          field.remove();
+          previousFocus?.focus({ preventScroll: true });
+        }
+      }
+
+      async function copyTarget(button, target) {
+        const text = target.matches('input, textarea') ? target.value : target.innerText.trim();
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          reportCopy(button, true);
+        } catch {
+          reportCopy(button, legacyCopy(text));
+        }
+      }
+
+      document.addEventListener('command', (event) => {
+        if (event.command.startsWith('--copy')) copyTarget(event.source, event.target);
+      }, true);
+
+      if (!('CommandEvent' in window)) {
+        document.addEventListener('click', (event) => {
+          if ('CommandEvent' in window || event.defaultPrevented) return;
+          const button = event.target.closest('button[command^="--copy"]');
+          if (!button) return;
+          const target = document.getElementById(button.getAttribute('commandfor'));
+          if (target) copyTarget(button, target);
+        });
+      }
+
+      let supportsDisplayTransition;
+      function canTransitionDisplay() {
+        if (supportsDisplayTransition !== undefined) return supportsDisplayTransition;
+        if (!window.CSS?.supports?.('transition-behavior', 'allow-discrete') || !document.body) {
+          return false;
+        }
+        const probeEl = document.createElement('div');
+        probeEl.style.cssText = 'transition: display 1s allow-discrete !important; display: block;';
+        document.body.appendChild(probeEl);
+        getComputedStyle(probeEl).display;
+        probeEl.style.display = 'none';
+        supportsDisplayTransition = getComputedStyle(probeEl).display === 'block';
+        probeEl.remove();
+        return supportsDisplayTransition;
+      }
+
+      function supportsTopLayerExit() {
+        return window.CSS?.supports?.('overlay', 'auto') && canTransitionDisplay();
+      }
+
+      async function closeTopLayer(dialog) {
+        if (!dialog.open) return;
+        if (!supportsTopLayerExit()) {
+          dialog.setAttribute('data-closing', '');
+          const animations = dialog.getAnimations({ subtree: true });
+          if (animations.length > 0) {
+            await Promise.race([
+              Promise.allSettled(animations.map((a) => a.finished)),
+              new Promise((r) => setTimeout(r, 1000)),
+            ]);
+          }
+          if (!dialog.hasAttribute('data-closing')) return;
+          dialog.removeAttribute('data-closing');
+        }
+        dialog.close();
+      }
+
+      const startDialog = document.getElementById('start-dialog');
+      if (startDialog) {
+        startDialog.addEventListener('cancel', (event) => {
+          if (!supportsTopLayerExit()) {
+            event.preventDefault();
+            closeTopLayer(startDialog);
+          }
+        });
+        startDialog.addEventListener('command', (event) => {
+          if (event.command === 'close' && !supportsTopLayerExit()) {
+            event.preventDefault();
+            closeTopLayer(startDialog);
+          }
+        });
+      }
+
+      if (!('closedBy' in HTMLDialogElement.prototype)) {
+        const outside = (e, dialog) => {
+          const r = dialog.getBoundingClientRect();
+          return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+        };
+        for (const dialog of document.querySelectorAll('dialog[closedby="any"]')) {
+          let pressedOutside = false;
+          dialog.addEventListener('pointerdown', (e) => { pressedOutside = outside(e, dialog); });
+          dialog.addEventListener('pointerup', (e) => { if (pressedOutside && outside(e, dialog)) closeTopLayer(dialog); });
+        }
+      }
+
+      const stage = document.getElementById('stage');
+      const extra = document.getElementById('extra');
+      const note = document.getElementById('note');
+
+      const DEMO_PHOTO = './assets/demo.jpg';
+
+      let mode = 'img';
+      let instance = null;
+      let animRaf = null;
+      let fileUrl = null;
+      let fileIsVideo = false;
+      let altPicture = false;
+      let svgMode = false;
+      let demoPhotoBlocked = location.protocol === 'file:';
+
+      function getStageSize() {
+        const w = Math.max(stage.clientWidth || 1280, 640);
+        const h = Math.max(stage.clientHeight || 720, 360);
+        const cap = 1440;
+        if (w <= cap && h <= cap) return { w, h };
+        const k = cap / Math.max(w, h);
+        return { w: Math.round(w * k), h: Math.round(h * k) };
+      }
+
+      function makeTexture(warm, w, h) {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        const g = ctx.createLinearGradient(0, 0, c.width, c.height);
+        if (warm) {
+          g.addColorStop(0, '#1c1512');
+          g.addColorStop(0.5, '#9a4719');
+          g.addColorStop(1, '#e0a96d');
+        } else {
+          g.addColorStop(0, '#0f1b2e');
+          g.addColorStop(0.5, '#1f4478');
+          g.addColorStop(1, '#396ea8');
+        }
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, c.width, c.height);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+        ctx.lineWidth = 2;
+        for (let x = -c.height; x < c.width + c.height; x += 64) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x + c.height * 0.6, c.height);
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx.beginPath();
+        ctx.arc(c.width * 0.68, c.height * 0.34, Math.min(w, h) * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+        return c.toDataURL('image/png');
+      }
+
+      function makeSvgUrl(w, h) {
+        const r = Math.min(w, h) * 0.14;
+        return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
+            <rect width="${w}" height="${h}" fill="#17243b"/>
+            <g stroke="rgba(255,255,255,0.24)" stroke-width="2" fill="none">
+              <circle cx="${w / 2}" cy="${h / 2}" r="${r}"/>
+              <circle cx="${w / 2}" cy="${h / 2}" r="${r * 2}"/>
+              <circle cx="${w / 2}" cy="${h / 2}" r="${r * 3}"/>
+            </g>
+          </svg>`
+        );
+      }
+
+      function drawFrame(ctx, w, h, t) {
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, '#0f1b2e');
+        g.addColorStop(1, '#244b7a');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+        ctx.lineWidth = 2;
+        const offset = (t * 44) % 64;
+        for (let x = offset; x < w; x += 64) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = 'rgba(255,255,255,0.26)';
+        const cx = w * 0.5 + Math.cos(t) * (w * 0.18);
+        const cy = h * 0.5 + Math.sin(t * 1.3) * (h * 0.18);
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.min(w, h) * 0.11, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      let lastStageW = 0;
+      let lastStageH = 0;
+
+      function fitMedia() {
+        if (!instance || !instance.backgroundWidth || !instance.backgroundHeight) return;
+        if (mode === 'div' || (mode === 'img' && svgMode && !fileUrl)) return;
+        const sw = stage.clientWidth;
+        const sh = stage.clientHeight;
+        if (!sw || !sh) return;
+        const aspect = instance.backgroundWidth / instance.backgroundHeight;
+        instance.element.style.width = `${Math.round(Math.min(sw, sh * aspect))}px`;
+        instance.element.style.height = 'auto';
+        instance.updateSize();
+      }
+
+      function getOpts() {
+        return {
+          lazy: false,
+          perturbance: +document.getElementById('perturbance').value,
+          dropRadius: +document.getElementById('dropRadius').value,
+          damping: +document.getElementById('damping').value,
+          speed: +document.getElementById('speed').value,
+          specular: +document.getElementById('specular').value,
+          interactive: document.getElementById('interactive').checked,
+          live: document.getElementById('live').checked ? 'auto' : false,
+          autoPause: document.getElementById('autoPause').checked,
+          onReady: fitMedia,
+          onError: (err) => {
+            if (!demoPhotoBlocked && !fileUrl && !(mode === 'img' && svgMode) && mode !== 'video' && mode !== 'canvas') {
+              demoPhotoBlocked = true;
+              mount();
+              return;
+            }
+            note.textContent = err.message;
+          },
+        };
+      }
+
+      function addModeButton(label, onClick) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.modeBtn = '1';
+        b.textContent = label;
+        b.onclick = onClick;
+        extra.appendChild(b);
+        return b;
+      }
+
+      function mount() {
+        if (animRaf) { cancelAnimationFrame(animRaf); animRaf = null; }
+        if (instance) { instance.destroy(); instance = null; }
+        note.textContent = '';
+        stage.innerHTML = '';
+        extra.querySelectorAll('[data-mode-btn]').forEach((el) => el.remove());
+
+        const { w, h } = getStageSize();
+        const imgA = makeTexture(false, w, h);
+        const imgB = makeTexture(true, w, h);
+        const defaultPhoto = demoPhotoBlocked ? imgA : DEMO_PHOTO;
+        const opts = getOpts();
+        let target;
+        let captionText = '';
+
+        if (mode === 'img') {
+          const img = document.createElement('img');
+          img.alt = '';
+          img.src = (fileUrl && !fileIsVideo) ? fileUrl : (svgMode ? makeSvgUrl(w, h) : defaultPhoto);
+          stage.appendChild(img);
+          target = img;
+          captionText = (fileUrl && !fileIsVideo)
+            ? 'Custom image'
+            : (svgMode ? 'Vector SVG' : (demoPhotoBlocked ? 'Raster PNG' : 'Photo'));
+          addModeButton(svgMode ? (demoPhotoBlocked ? 'PNG' : 'Photo') : 'SVG', () => {
+            fileUrl = null;
+            svgMode = !svgMode;
+            mount();
+          });
+        } else if (mode === 'picture') {
+          const pic = document.createElement('picture');
+          const src = document.createElement('source');
+          src.srcset = altPicture ? imgB : defaultPhoto;
+          src.media = '(min-width: 1px)';
+          const img = document.createElement('img');
+          img.src = defaultPhoto;
+          img.alt = '';
+          pic.append(src, img);
+          stage.appendChild(pic);
+          target = pic;
+          captionText = 'Responsive image';
+          addModeButton('Switch <source>', () => {
+            altPicture = !altPicture;
+            src.srcset = altPicture ? imgB : defaultPhoto;
+          });
+        } else if (mode === 'video') {
+          const video = document.createElement('video');
+          video.muted = true;
+          video.loop = true;
+          video.playsInline = true;
+          video.autoplay = true;
+
+          if (fileUrl && fileIsVideo) {
+            video.src = fileUrl;
+          } else {
+            const c = document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            const ctx = c.getContext('2d');
+            const t0 = performance.now();
+            const loop = (t) => {
+              drawFrame(ctx, c.width, c.height, (t - t0) * 0.001);
+              animRaf = requestAnimationFrame(loop);
+            };
+            animRaf = requestAnimationFrame(loop);
+            if (typeof c.captureStream === 'function') {
+              video.srcObject = c.captureStream(30);
+            } else {
+              note.textContent = 'captureStream is not supported — pick a video file manually';
+            }
+          }
+          stage.appendChild(video);
+          video.play().catch(() => {});
+          target = video;
+          captionText = (fileUrl && fileIsVideo)
+            ? 'Custom video'
+            : 'Live video stream';
+
+          const pb = addModeButton('Pause', () => {
+            if (video.paused) { video.play().catch(() => {}); pb.textContent = 'Pause'; }
+            else { video.pause(); pb.textContent = 'Play'; }
+          });
+        } else if (mode === 'canvas') {
+          const c = document.createElement('canvas');
+          c.width = w;
+          c.height = h;
+          const ctx = c.getContext('2d');
+          const t0 = performance.now();
+          const loop = (t) => {
+            drawFrame(ctx, c.width, c.height, (t - t0) * 0.001);
+            animRaf = requestAnimationFrame(loop);
+          };
+          animRaf = requestAnimationFrame(loop);
+          stage.appendChild(c);
+          target = c;
+          captionText = 'Animated 2D canvas';
+          addModeButton('Refresh', () => instance && instance.refresh());
+        } else {
+          const div = document.createElement('div');
+          div.className = 'stage-div';
+          div.style.backgroundImage = `url("${(fileUrl && !fileIsVideo) ? fileUrl : defaultPhoto}")`;
+          stage.appendChild(div);
+          target = div;
+          captionText = 'CSS background-image';
+        }
+
+        const caption = document.createElement('span');
+        caption.className = 'stage-caption';
+        caption.textContent = captionText;
+        stage.appendChild(caption);
+
+        lastStageW = stage.clientWidth;
+        lastStageH = stage.clientHeight;
+        instance = new Ripples(target, opts);
+      }
+
+      function syncSlider(input, out) {
+        input.style.setProperty('--attr-min', input.min || 0);
+        input.style.setProperty('--attr-max', input.max || 100);
+        input.style.setProperty('--control-value', input.value);
+        out.textContent = input.value;
+      }
+
+      for (const prop of ['perturbance', 'dropRadius', 'damping', 'speed', 'specular']) {
+        const input = document.getElementById(prop);
+        const out = document.getElementById('val-' + prop);
+        syncSlider(input, out);
+        input.addEventListener('input', () => {
+          syncSlider(input, out);
+          if (instance) instance.set(prop, +input.value);
+        });
+      }
+
+      document.getElementById('interactive').addEventListener('change', (e) => {
+        if (instance) instance.set('interactive', e.target.checked);
+      });
+      document.getElementById('live').addEventListener('change', (e) => {
+        if (instance) instance.set('live', e.target.checked ? 'auto' : false);
+      });
+      document.getElementById('autoPause').addEventListener('change', mount);
+
+      document.querySelectorAll('[data-mode]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          mode = btn.dataset.mode;
+          document.querySelectorAll('[data-mode]').forEach((b) => {
+            b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+          });
+          mount();
+        });
+      });
+
+      document.getElementById('file-input').addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (fileUrl) URL.revokeObjectURL(fileUrl);
+        fileUrl = URL.createObjectURL(file);
+        fileIsVideo = file.type.startsWith('video/');
+        mode = fileIsVideo ? 'video' : 'img';
+        document.querySelectorAll('[data-mode]').forEach((b) => {
+          b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false');
+        });
+        mount();
+      });
+
+      document.getElementById('btn-drop').addEventListener('click', () => {
+        if (!instance) return;
+        const r = instance.element.getBoundingClientRect();
+        instance.drop(r.width / 2, r.height / 2, undefined, 0.14);
+      });
+
+      document.getElementById('btn-reset').addEventListener('click', () => {
+        const defaults = { perturbance: '0.05', dropRadius: '40', damping: '0.975', speed: '1', specular: '0.3' };
+        for (const [k, v] of Object.entries(defaults)) {
+          const input = document.getElementById(k);
+          input.value = v;
+          syncSlider(input, document.getElementById('val-' + k));
+        }
+        document.getElementById('interactive').checked = true;
+        document.getElementById('live').checked = true;
+        document.getElementById('autoPause').checked = true;
+        mount();
+      });
+
+      let resizeTimer = null;
+      if ('ResizeObserver' in window) {
+        new ResizeObserver(() => {
+          const w = stage.clientWidth;
+          const h = stage.clientHeight;
+          if (!w || !h) return;
+          if (Math.abs(w - lastStageW) <= 4 && Math.abs(h - lastStageH) <= 4) return;
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            lastStageW = stage.clientWidth;
+            lastStageH = stage.clientHeight;
+            if (fileUrl || (!demoPhotoBlocked && ((mode === 'img' && !svgMode) || mode === 'picture'))) fitMedia();
+            else mount();
+          }, 100);
+        }).observe(stage);
+      }
+      mount();
+    })();
+  </script>
+  <script type="module">
+    if (!('commandForElement' in HTMLButtonElement.prototype)) {
+      try {
+        await import('https://esm.run/invokers-polyfill');
+      } catch {
+        document.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[commandfor][command]');
+          if (!btn) return;
+          const target = document.getElementById(btn.getAttribute('commandfor'));
+          if (!target) return;
+          const cmd = btn.getAttribute('command');
+          if (cmd === 'show-modal' && typeof target.showModal === 'function') target.showModal();
+          else if (cmd === 'close' && typeof target.close === 'function') target.close();
+        });
+      }
+    }
+    if (!Object.hasOwn(HTMLElement.prototype, 'popover')) {
+      await import('https://unpkg.com/@oddbird/popover-polyfill@latest/dist/popover.min.js').catch(() => {});
+    }
+    if (!('interestForElement' in HTMLButtonElement.prototype)) {
+      await import('https://unpkg.com/interestfor@latest').catch(() => {});
+    }
+  </script>
+</body>
+</html>

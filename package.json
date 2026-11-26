@@ -1,0 +1,49 @@
+{
+  "name": "ripples-js",
+  "version": "1.0.0",
+  "description": "WebGL 2 water ripple effect for images and CSS backgrounds. Zero dependencies.",
+  "keywords": ["webgl", "webgl2", "ripples", "water", "ripple", "effect", "image", "shader"],
+  "author": "Andrei Prokin",
+  "license": "MIT",
+  "homepage": "https://github.com/qumeqa/ripples#readme",
+  "bugs": {
+    "url": "https://github.com/qumeqa/ripples/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qumeqa/ripples.git"
+  },
+  "main": "./dist/ripples.umd.js",
+  "module": "./dist/ripples.mjs",
+  "types": "./dist/ripples.d.ts",
+  "unpkg": "./dist/ripples.umd.min.js",
+  "jsdelivr": "./dist/ripples.umd.min.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/ripples.d.mts",
+        "default": "./dist/ripples.mjs"
+      },
+      "require": {
+        "types": "./dist/ripples.d.cts",
+        "default": "./dist/ripples.umd.js"
+      },
+      "default": "./dist/ripples.umd.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/ripples.test.mjs",
+    "typecheck": "tsc --noEmit --strict types/ripples.d.ts test/types.check.ts",
+    "prepublishOnly": "npm run build && npm test && npm run typecheck"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=18" }
+}
