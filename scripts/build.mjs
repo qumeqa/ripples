@@ -40,8 +40,18 @@ ${umdBody}
 }));
 `;
 
+const minifyGlsl = (code) =>
+  code.replace(/`(#version 300 es[\s\S]*?)`/g, (_, shader) => {
+    const compacted = shader
+      .replace(/\/\/[^\n]*/g, '')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/ *\n+ */g, '\n')
+      .trim();
+    return '`' + compacted + '`';
+  });
+
 const min = async (code, format) =>
-  (await transform(code, { minify: true, target: 'es2022', ...(format ? { format } : {}), legalComments: 'none' })).code;
+  (await transform(minifyGlsl(code), { minify: true, target: 'es2022', ...(format ? { format } : {}), legalComments: 'none' })).code;
 
 const dts = readFileSync('types/ripples.d.ts', 'utf8').replace(/\r\n/g, '\n');
 const dmts = dts.replace(/^export as namespace Ripples;\n?/m, '');
@@ -49,7 +59,7 @@ const dcts = dts
   .replace(/^export (interface|type) /gm, '$1 ')
   .replace(
     /^export default Ripples;\nexport \{ Ripples \};\nexport as namespace Ripples;/m,
-    'declare namespace Ripples {\n  export type { RipplesOptions, RipplesSettable, RipplesEventDetail, RipplesTarget };\n}\n\nexport = Ripples;'
+    'declare namespace Ripples {\n  export type { RipplesPreset, RipplesOptions, RipplesSettable, RipplesEventDetail, RipplesTarget };\n}\n\nexport = Ripples;'
   );
 
 mkdirSync('dist', { recursive: true });

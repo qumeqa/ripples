@@ -1,4 +1,4 @@
-/*! Ripples.js v1.0.0 | MIT License */
+/*! Ripples.js v1.1.0 | MIT License */
 /**
  * Ripples.js — WebGL 2 water ripple effect for <img>, <picture>, <video>, <canvas>, and CSS backgrounds.
  * Zero dependencies. MIT License.
@@ -123,7 +123,7 @@ function createRenderTarget(gl, size, config, filter) {
   return { texture, framebuffer };
 }
 
-function initWebGL2(canvas) {
+function initWebGL2(canvas, cachedConfig = null) {
   let gl;
   try {
     gl = canvas.getContext('webgl2', {
@@ -146,12 +146,16 @@ function initWebGL2(canvas) {
 
   enableFloatExtensions(gl);
 
-  // Probe half-float render target (RGBA16F or RG16F).
+  if (cachedConfig) {
+    return { gl, config: cachedConfig };
+  }
+
+  // Probe half-float render target (RG16F first to halve VRAM/bandwidth, RGBA16F as fallback).
   // NOTE: 16-bit float textures are always linearly filterable in WebGL 2
   // (only 32-bit float needs OES_texture_float_linear).
   const candidates = [
-    { internalFormat: gl.RGBA16F, format: gl.RGBA, type: gl.HALF_FLOAT },
-    { internalFormat: gl.RG16F, format: gl.RG, type: gl.HALF_FLOAT }
+    { internalFormat: gl.RG16F, format: gl.RG, type: gl.HALF_FLOAT },
+    { internalFormat: gl.RGBA16F, format: gl.RGBA, type: gl.HALF_FLOAT }
   ];
 
   const testTex = gl.createTexture();
@@ -256,8 +260,7 @@ out vec4 fragColor;
 void main() {
 vec4 info = texture(uTexture, coord);
 float added = 0.0;
-for (int i = 0; i < MAX_DROPS; i++) {
-  if (i >= dropCount) break;
+for (int i = 0; i < dropCount; i++) {
   vec4 d = drops[i];
   float k = max(0.0, 1.0 - length(d.xy - coord) / d.z);
   k = 0.5 - cos(k * PI) * 0.5;
@@ -337,9 +340,10 @@ const RENDER_FS = `#version 300 es
 precision highp float;
 uniform sampler2D samplerBackground;
 uniform sampler2D samplerGradient;
-uniform vec2 delta;
+uniform float deltaSq;
 uniform float perturbance;
 uniform float specular;
+uniform float hasWaves;
 in vec2 ripplesCoord;
 in vec2 backgroundCoord;
 out vec4 fragColor;
@@ -388,32 +392,33 @@ void main() {
 vec2 dBx = dFdx(backgroundCoord);
 vec2 dBy = dFdy(backgroundCoord);
 
-vec2 grad = sampleCatmullRom(samplerGradient, ripplesCoord);
-vec2 offset = grad / sqrt(dot(grad, grad) + 4.0 * delta.x * delta.x);
-
 // Pixels outside the image stay transparent (e.g. background-size: contain)
 if (backgroundCoord.x < 0.0 || backgroundCoord.x > 1.0 || backgroundCoord.y < 0.0 || backgroundCoord.y > 1.0) {
   fragColor = vec4(0.0);
   return;
 }
 
-// Pixels inside the image never sample "outside": clamp to the edge instead of punching holes
-vec2 coord = clamp(backgroundCoord + offset * perturbance, vec2(0.0), vec2(1.0));
-
-vec4 bg = textureGrad(samplerBackground, coord, dBx, dBy);
+vec2 coord = backgroundCoord;
 float spec = 0.0;
-if (specular > 0.0) {
-  float d = max(0.0, dot(offset, LIGHT_DIR));
-  float d2 = d * d;
-  spec = d2 * d2 * specular;
+if (hasWaves > 0.5) {
+  vec2 grad = sampleCatmullRom(samplerGradient, ripplesCoord);
+  vec2 offset = grad / sqrt(dot(grad, grad) + deltaSq);
+  // Pixels inside the image never sample "outside": clamp to the edge instead of punching holes
+  coord = clamp(backgroundCoord + offset * perturbance, vec2(0.0), vec2(1.0));
+  if (specular > 0.0) {
+    float d = max(0.0, dot(offset, LIGHT_DIR));
+    float d2 = d * d;
+    spec = d2 * d2 * specular;
+  }
 }
 
+vec4 bg = textureGrad(samplerBackground, coord, dBx, dBy);
 // bg is premultiplied (see loadImage), so the specular term is scaled by alpha to stay premultiplied
 fragColor = vec4(bg.rgb + spec * bg.a, bg.a);
 }`;
 
 class Ripples {
-  static VERSION = '1.0.0';
+  static VERSION = '1.1.0';
 
   // Soft cap on simultaneously live WebGL contexts (browsers allow ~16 and silently kill the oldest).
   // When exceeded, the least recently used instance that is not animating gives its context back.
@@ -421,14 +426,23 @@ class Ripples {
   static _active = new Set();
   static _tick = 0;
 
+  static PRESETS = Object.freeze({
+    default: Object.freeze({ perturbance: 0.04, dropRadius: 40, damping: 0.975, speed: 1, specular: 0.2 }),
+    subtle:  Object.freeze({ perturbance: 0.02, dropRadius: 35, damping: 0.96,  speed: 0.85, specular: false }),
+    calm:    Object.freeze({ perturbance: 0.035, dropRadius: 55, damping: 0.985, speed: 0.75, specular: 0.25 }),
+    glossy:  Object.freeze({ perturbance: 0.05, dropRadius: 35, damping: 0.98,  speed: 1.15, specular: 0.75 }),
+    viscous: Object.freeze({ perturbance: 0.075, dropRadius: 65, damping: 0.945, speed: 0.65, specular: 0.4 })
+  });
+
   static DEFAULTS = {
     imageUrl: null,
+    preset: null,
     resolution: 256,
     dropRadius: 40,
-    perturbance: 0.05,
+    perturbance: 0.04,
     interactive: true,
     crossOrigin: 'anonymous',
-    specular: false,
+    specular: 0.2,
     damping: 0.975,
     speed: 1,
     autoPause: true,
@@ -444,6 +458,14 @@ class Ripples {
     onError: null
   };
 
+  static _resolvePreset(name) {
+    if (typeof name === 'string' && Object.hasOwn(Ripples.PRESETS, name)) {
+      return Ripples.PRESETS[name];
+    }
+    console.warn('[Ripples] Unknown preset "' + name + '"');
+    return null;
+  }
+
   constructor(element, options = {}) {
     const targetEl = typeof element === 'string' ? document.querySelector(element) : element;
     if (!targetEl) {
@@ -454,7 +476,13 @@ class Ripples {
       targetEl._ripples.destroy();
     }
 
-    this.options = Object.assign({}, Ripples.DEFAULTS, parseDataOptions(targetEl), options);
+    const dataOpts = parseDataOptions(targetEl);
+    const hasOptPreset = options.preset !== undefined;
+    const presetName = hasOptPreset ? options.preset : dataOpts.preset;
+    const preset = presetName ? Ripples._resolvePreset(presetName) : null;
+    this.options = hasOptPreset
+      ? Object.assign({}, Ripples.DEFAULTS, dataOpts, preset, options)
+      : Object.assign({}, Ripples.DEFAULTS, preset, dataOpts, options);
     this.gl = null;
     this.canvas = null;
     this.supported = true;
@@ -487,9 +515,10 @@ class Ripples {
 
     this.step = this.step.bind(this);
     this.updateSize = this.updateSize.bind(this);
-    this.wakeUp = this.wakeUp.bind(this);
-    this.renderSingleFrame = this.renderSingleFrame.bind(this);
-    this._clearRect = () => { this._rect = null; };
+    this._clearRect = () => {
+      this._rectRaf = null;
+      this._rect = null;
+    };
 
     this.interactive = Boolean(this.options.interactive);
     this.resolution = parseInt(this.options.resolution, 10) || 256;
@@ -498,7 +527,7 @@ class Ripples {
     this._explicitImageUrl = Boolean(this.options.imageUrl);
     this.imageUrl = this.options.imageUrl;
     this.specularIntensity = parseSpecular(this.options.specular);
-    this._userPerturbance = toNumber(this.options.perturbance, 0.05);
+    this._userPerturbance = toNumber(this.options.perturbance, 0.04);
     this._userDamping = parseDamping(this.options.damping);
     this.speed = parseSpeed(this.options.speed);
     this.speedAccumulator = 0;
@@ -516,17 +545,16 @@ class Ripples {
     this.reducedMotion = Boolean(this._motionQuery && this._motionQuery.matches);
     this.applyMotionPreference();
 
-    this.textureDelta = new Float32Array([1 / this.resolution, 1 / this.resolution]);
-    this.uniformTopLeft = new Float32Array([0, 0]);
-    this.uniformBottomRight = new Float32Array([1, 1]);
-    this.uniformContainerRatio = new Float32Array([1, 1]);
     this.dropData = new Float32Array(MAX_QUEUED_DROPS * 4);
     this.dropCount = 0;
     this.boundariesDirty = true;
     this._rect = null;
+    this._rectRaf = null;
+    this._resizeRaf = null;
     this._idleTimer = null;
     this._lastUsed = 0;
-    this._prewarmQueued = false;
+    this._prewarmHandle = null;
+    this._prewarmIsIdle = false;
     this._cssSource = null;
     this._isSvgSource = false;
     this._svgNatural = null;
@@ -539,6 +567,10 @@ class Ripples {
     this._forceLiveUpload = false;
     this._scaleCanvas = null;
     this._imgLoadHandler = null;
+    this._loadToken = 0;
+    this._loadingSource = null;
+    this._hasSimData = false;
+    this._lastHasWaves = null;
     this._path = [];
     this._segLen = [];
 
@@ -578,10 +610,10 @@ class Ripples {
       wrapper.style.maxWidth = '100%';
       wrapper.style.lineHeight = '0';
       wrapper.style.verticalAlign = boxComp.verticalAlign || 'middle';
-      wrapper.style.marginTop = parseFloat(wrapComp.marginTop) ? wrapComp.marginTop : comp.marginTop;
-      wrapper.style.marginRight = parseFloat(wrapComp.marginRight) ? wrapComp.marginRight : comp.marginRight;
-      wrapper.style.marginBottom = parseFloat(wrapComp.marginBottom) ? wrapComp.marginBottom : comp.marginBottom;
-      wrapper.style.marginLeft = parseFloat(wrapComp.marginLeft) ? wrapComp.marginLeft : comp.marginLeft;
+      for (let i = 0; i < MARGIN_SIDES.length; i++) {
+        const p = MARGIN_SIDES[i];
+        wrapper.style[p] = parseFloat(wrapComp[p]) ? wrapComp[p] : comp[p];
+      }
 
       wrapTarget.parentNode.insertBefore(wrapper, wrapTarget);
       wrapper.appendChild(wrapTarget);
@@ -642,6 +674,8 @@ class Ripples {
 
   _createCanvas() {
     const canvas = document.createElement('canvas');
+    canvas.width = 0;
+    canvas.height = 0;
     const cs = canvas.style;
     cs.position = 'absolute';
     cs.top = '0';
@@ -660,7 +694,7 @@ class Ripples {
 
     Ripples._makeRoom();
 
-    const glInit = initWebGL2(this.canvas);
+    const glInit = initWebGL2(this.canvas, Ripples._glConfig);
     if (!glInit) {
       this.fail(new Error('WebGL 2 with half-float render targets is not available'));
       return false;
@@ -668,6 +702,7 @@ class Ripples {
 
     this.gl = glInit.gl;
     this.glConfig = glInit.config;
+    Ripples._glConfig = glInit.config;
 
     this.handleContextLost = (e) => {
       e.preventDefault();
@@ -684,6 +719,8 @@ class Ripples {
         return;
       }
       // GPU resources are gone: re-upload media and reset loop state
+      ++this._loadToken;
+      this._loadingSource = null;
       this.imageSource = null;
       this.backgroundWidth = 0;
       this.backgroundHeight = 0;
@@ -714,7 +751,7 @@ class Ripples {
     Ripples._active.add(this);
     this._touch();
 
-    this.updateSize();
+    this.updateSize(false);
     this.loadImage();
     return true;
   }
@@ -835,6 +872,10 @@ class Ripples {
 
     this._restoreOriginalVisual(true);
 
+    ++this._loadToken;
+    this._loadingSource = null;
+    this._hasSimData = false;
+    this._lastHasWaves = null;
     this.hasActiveRipples = false;
     this.isSleeping = true;
     this.needsRender = false;
@@ -885,13 +926,11 @@ class Ripples {
       this._syncMediaSource();
     } else if (this.canvasElement && !this._explicitImageUrl) {
       if (this.gl) {
-        this._forceLiveUpload = true;
         this._uploadCanvasSource(this.canvasElement, !this.backgroundWidth);
       }
     } else if (this.videoElement && !this._explicitImageUrl) {
       this._syncMediaSource();
       if (this.gl && this.videoElement.readyState >= 2 && this.videoElement.videoWidth > 0) {
-        this._forceLiveUpload = true;
         this._uploadVideoFrame(this.videoElement, !this._videoReadyEmitted);
       }
     } else if (!this.imageUrl && this.gl) {
@@ -934,6 +973,7 @@ class Ripples {
     const t = this.getSvgTargetSize(this._svgNatural.w, this._svgNatural.h, this._maxTex);
     if (t.w > this.backgroundWidth * 1.25) {
       this.imageSource = null;
+      this._loadingSource = null;
       this.loadImage();
     }
   }
@@ -969,7 +1009,9 @@ class Ripples {
   getRect() {
     if (!this._rect) {
       this._rect = this.element.getBoundingClientRect();
-      requestAnimationFrame(this._clearRect);
+      if (!this._rectRaf) {
+        this._rectRaf = requestAnimationFrame(this._clearRect);
+      }
     }
     return this._rect;
   }
@@ -992,6 +1034,7 @@ class Ripples {
 
     // Extensions must be (re-)enabled after a context restore
     enableFloatExtensions(gl);
+    this._maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
 
     this.vao = gl.createVertexArray();
     gl.bindVertexArray(this.vao);
@@ -1007,13 +1050,13 @@ class Ripples {
 
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    gl.bindVertexArray(null);
 
     // Ping-pong render targets (NEAREST: simulation only reads exact texel centres)
     this.textures = [];
     this.framebuffers = [];
     this.bufferWriteIndex = 0;
     this.bufferReadIndex = 1;
+    this._hasSimData = false;
 
     for (let i = 0; i < 2; i++) {
       const rt = createRenderTarget(gl, this.resolution, config, gl.NEAREST);
@@ -1043,12 +1086,15 @@ class Ripples {
     gl.useProgram(this.gradientProgram.id);
     gl.uniform1i(this.gradientProgram.locations.uTexture, 0);
 
+    const texel = 1 / this.resolution;
     gl.useProgram(this.renderProgram.id);
     gl.uniform1i(this.renderProgram.locations.samplerBackground, 0);
     gl.uniform1i(this.renderProgram.locations.samplerGradient, 1);
-    gl.uniform2fv(this.renderProgram.locations.delta, this.textureDelta);
+    gl.uniform1f(this.renderProgram.locations.deltaSq, 4 * texel * texel);
     gl.uniform1f(this.renderProgram.locations.perturbance, this.perturbance);
     gl.uniform1f(this.renderProgram.locations.specular, this.specularIntensity);
+    gl.uniform1f(this.renderProgram.locations.hasWaves, 0.0);
+    this._lastHasWaves = false;
 
     this.backgroundTexture = gl.createTexture();
     this._texInitialized = false;
@@ -1065,7 +1111,7 @@ class Ripples {
   setTransparentTexture() {
     if (!this.gl || !this.backgroundTexture) return;
     const gl = this.gl;
-    gl.bindTexture(gl.TEXTURE_2D, this.backgroundTexture);
+    this.bindTexture(this.backgroundTexture, 0);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, BLANK_PIXEL);
     this._texInitialized = false;
   }
@@ -1133,14 +1179,12 @@ class Ripples {
     };
     const onSeeked = () => {
       if (!isCurrent() || video.readyState < 2) return;
-      this._forceLiveUpload = true;
       this._uploadVideoFrame(video, !this._videoReadyEmitted);
       if (this.isSleeping || !this.rafId) this.renderSingleFrame();
     };
     const onPause = () => {
       if (!isCurrent()) return;
       if (video.readyState >= 2 && video.videoWidth > 0) {
-        this._forceLiveUpload = true;
         this._uploadVideoFrame(video, !this._videoReadyEmitted);
       }
       if (!this.hasActiveRipples) this.renderSingleFrame();
@@ -1189,15 +1233,23 @@ class Ripples {
     const gl = this.gl;
     if (!gl || !this.backgroundTexture) return false;
 
-    const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
+    const maxTex = this._maxTex;
     let sourceToUpload = source;
 
-    if (!this.mediaElement && this.element.clientHeight === 0) {
-      this.isAutoAspectRatio = true;
-      this.element.style.display = 'block';
-      this.element.style.width = '100%';
-      this.element.style.aspectRatio = `${width} / ${height}`;
-      this.updateSize();
+    if (!this.mediaElement && (this.isAutoAspectRatio || this.element.clientHeight === 0)) {
+      if (!this.isAutoAspectRatio) {
+        this.originalAutoDisplay = this.element.style.display;
+        this.originalAutoWidth = this.element.style.width;
+        this.originalAutoAspectRatio = this.element.style.aspectRatio;
+        this.isAutoAspectRatio = true;
+      }
+      const nextRatio = `${width} / ${height}`;
+      if (this.element.style.aspectRatio !== nextRatio) {
+        this.element.style.display = 'block';
+        this.element.style.width = '100%';
+        this.element.style.aspectRatio = nextRatio;
+        if (!emitReady) this.updateSize();
+      }
     }
 
     let tw, th;
@@ -1223,7 +1275,7 @@ class Ripples {
 
     const canSubImage = live && this._texInitialized && this.backgroundWidth === width && this.backgroundHeight === height;
 
-    gl.bindTexture(gl.TEXTURE_2D, this.backgroundTexture);
+    this.bindTexture(this.backgroundTexture, 0);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
 
@@ -1260,7 +1312,6 @@ class Ripples {
     }
     this.backgroundWidth = width;
     this.backgroundHeight = height;
-    this._maxTex = maxTex;
     this._isSvgSource = isSvg;
     this._svgNatural = isSvg ? { w: naturalW, h: naturalH } : null;
 
@@ -1329,6 +1380,8 @@ class Ripples {
     if (!this.gl) return;
 
     if (this.canvasElement && !this._explicitImageUrl) {
+      ++this._loadToken;
+      this._loadingSource = null;
       this._teardownOwnedVideo();
       this.imageSource = '__canvas__';
       this._uploadCanvasSource(this.canvasElement, true);
@@ -1339,7 +1392,9 @@ class Ripples {
       this._teardownOwnedVideo();
       const video = this.videoElement;
       const src = video.currentSrc || video.src || '__video__';
-      if (src === this.imageSource && this.backgroundWidth) return;
+      if (src === this.imageSource && (this.backgroundWidth || (this._videoListeners && this._videoListeners.video === video))) return;
+      ++this._loadToken;
+      this._loadingSource = null;
       this.imageSource = src;
       this._videoReadyEmitted = false;
       this._lastVideoTime = -1;
@@ -1372,8 +1427,10 @@ class Ripples {
       }
     }
 
-    if (newSource === this.imageSource && this.backgroundWidth) return;
+    if (newSource === this.imageSource && (this.backgroundWidth || this._loadingSource === newSource)) return;
 
+    const token = ++this._loadToken;
+    this._loadingSource = null;
     this._teardownOwnedVideo();
     this.imageSource = newSource;
     if (!this.imageSource) {
@@ -1404,10 +1461,12 @@ class Ripples {
     }
 
     const isSvg = /\.svg($|\?)/i.test(this.imageSource) || /^data:image\/svg\+xml/i.test(this.imageSource);
+    this._loadingSource = newSource;
 
     const image = new Image();
     image.onload = () => {
-      if (this.destroyed || !this.gl || this.imageSource !== newSource) return; // stale load
+      if (this.destroyed || !this.gl || this._loadToken !== token) return; // stale load
+      this._loadingSource = null;
       let width = image.naturalWidth || image.width || 0;
       let height = image.naturalHeight || image.height || 0;
 
@@ -1429,7 +1488,8 @@ class Ripples {
     };
 
     image.onerror = () => {
-      if (this.destroyed || !this.gl || this.imageSource !== newSource) return;
+      if (this.destroyed || !this.gl || this._loadToken !== token) return;
+      this._loadingSource = null;
       this.setTransparentTexture();
       this._emit('error', new Error('Failed to load image: ' + this.imageSource));
     };
@@ -1441,10 +1501,10 @@ class Ripples {
     image.src = this.imageSource;
   }
 
-  getEffectiveRadius(baseRadius) {
+  getEffectiveRadius(baseRadius, elWidth) {
     const radius = baseRadius !== undefined ? baseRadius : this.dropRadius;
-    const elWidth = this.lastClientWidth || this.element.clientWidth || 1200;
-    const scale = Math.min(Math.max(elWidth / 1200, 0.35), 1.3);
+    const width = elWidth || this.lastClientWidth || this.element.clientWidth || 1200;
+    const scale = Math.min(Math.max(width / 1200, 0.35), 1.3);
     return radius * scale;
   }
 
@@ -1452,6 +1512,7 @@ class Ripples {
     if (!this.gl || !this.framebuffers) return;
     const gl = this.gl;
     this.dropCount = 0;
+    this._hasSimData = false;
     for (let i = 0; i < 2; i++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
       gl.clearColor(0, 0, 0, 0);
@@ -1496,9 +1557,10 @@ class Ripples {
       lastX = e.clientX;
       lastY = e.clientY;
 
-      const effRadius = this.getEffectiveRadius(this.dropRadius);
+      const rect = this.getRect();
+      const effRadius = this.getEffectiveRadius(this.dropRadius, rect.width);
       const effStrength = isTouch ? 0.008 : 0.01;
-      this.emitTrail(path, effRadius, effStrength, this.getRect());
+      this.emitTrail(path, effRadius, effStrength, rect);
     };
 
     const onPointerDown = (e) => {
@@ -1507,10 +1569,10 @@ class Ripples {
       lastX = e.clientX;
       lastY = e.clientY;
 
-      const isTouch = e.pointerType === 'touch';
-      const effRadius = this.getEffectiveRadius(this.dropRadius) * (isTouch ? 1.25 : 1.5);
-      const effStrength = isTouch ? 0.09 : 0.14;
       const rect = this.getRect();
+      const isTouch = e.pointerType === 'touch';
+      const effRadius = this.getEffectiveRadius(this.dropRadius, rect.width) * (isTouch ? 1.25 : 1.5);
+      const effStrength = isTouch ? 0.09 : 0.14;
       this.queueDrop(
         e.clientX - rect.left - this.borderLeft,
         e.clientY - rect.top - this.borderTop,
@@ -1595,12 +1657,18 @@ class Ripples {
           if (this.inViewport) {
             this.boundariesDirty = true;
             this._syncFrame();
-            if (this.options.prewarm && !this.gl && !this._prewarmQueued) {
-              this._prewarmQueued = true;
-              const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 200));
-              idle(() => {
+            if (this.options.prewarm && !this.gl && !this._prewarmHandle) {
+              const run = () => {
+                this._prewarmHandle = null;
                 if (!this.destroyed && this.inViewport && !this.gl) this.activate();
-              });
+              };
+              if (window.requestIdleCallback) {
+                this._prewarmIsIdle = true;
+                this._prewarmHandle = window.requestIdleCallback(run);
+              } else {
+                this._prewarmIsIdle = false;
+                this._prewarmHandle = setTimeout(run, 200);
+              }
             }
           }
         }
@@ -1608,21 +1676,33 @@ class Ripples {
       this.intersectionObserver.observe(this.element);
     }
 
-    let resizeRaf = null;
     if ('ResizeObserver' in window) {
+      let lastContentW = -1;
+      let lastContentH = -1;
       const onResize = () => {
-        if (resizeRaf) return;
-        resizeRaf = requestAnimationFrame(() => {
-          resizeRaf = null;
+        if (this._resizeRaf) return;
+        this._resizeRaf = requestAnimationFrame(() => {
+          this._resizeRaf = null;
           this.boundariesDirty = true;
           this.updateSize();
         });
       };
       this.resizeObserver = new ResizeObserver((entries) => {
+        if (!this.gl) {
+          lastContentW = -1;
+          lastContentH = -1;
+          return;
+        }
         for (let i = 0; i < entries.length; i++) {
           const cr = entries[i].contentRect;
-          if (cr && (Math.round(cr.width) !== this.lastClientWidth || Math.round(cr.height) !== this.lastClientHeight)) {
+          if (!cr) continue;
+          const w = Math.round(cr.width);
+          const h = Math.round(cr.height);
+          if (w !== lastContentW || h !== lastContentH) {
+            lastContentW = w;
+            lastContentH = h;
             onResize();
+            break;
           }
         }
       });
@@ -1666,15 +1746,15 @@ class Ripples {
     if (!this.backgroundWidth || !this.backgroundHeight || !this.gl) return;
 
     const maxSide = Math.max(this.canvas.width, this.canvas.height) || 1;
-    this.uniformContainerRatio[0] = this.canvas.width / maxSide;
-    this.uniformContainerRatio[1] = this.canvas.height / maxSide;
+    const crX = this.canvas.width / maxSide;
+    const crY = this.canvas.height / maxSide;
 
-    if (this.mediaElement || this.isAutoAspectRatio) {
-      this.uniformTopLeft[0] = 0;
-      this.uniformTopLeft[1] = 0;
-      this.uniformBottomRight[0] = 1;
-      this.uniformBottomRight[1] = 1;
-    } else {
+    let tlX = 0;
+    let tlY = 0;
+    let brX = 1;
+    let brY = 1;
+
+    if (!this.mediaElement && !this.isAutoAspectRatio) {
       const rect = this.getRect();
       const style = window.getComputedStyle(this.element);
       const bgSize = (style.backgroundSize || 'cover').split(',')[0].trim();
@@ -1693,37 +1773,21 @@ class Ripples {
       const bgX = (rect.width - bgW) * 0.5;
       const bgY = (rect.height - bgH) * 0.5;
 
-      const tlX = bgW !== 0 ? -bgX / bgW : 0;
-      const tlY = bgH !== 0 ? -bgY / bgH : 0;
-
-      this.uniformTopLeft[0] = tlX;
-      this.uniformTopLeft[1] = tlY;
-      this.uniformBottomRight[0] = tlX + (bgW !== 0 ? rect.width / bgW : 1);
-      this.uniformBottomRight[1] = tlY + (bgH !== 0 ? rect.height / bgH : 1);
+      tlX = bgW !== 0 ? -bgX / bgW : 0;
+      tlY = bgH !== 0 ? -bgY / bgH : 0;
+      brX = tlX + (bgW !== 0 ? rect.width / bgW : 1);
+      brY = tlY + (bgH !== 0 ? rect.height / bgH : 1);
     }
 
     const gl = this.gl;
     gl.useProgram(this.renderProgram.id);
-    gl.uniform2fv(this.renderProgram.locations.topLeft, this.uniformTopLeft);
-    gl.uniform2fv(this.renderProgram.locations.bottomRight, this.uniformBottomRight);
-    gl.uniform2fv(this.renderProgram.locations.containerRatio, this.uniformContainerRatio);
+    gl.uniform2f(this.renderProgram.locations.topLeft, tlX, tlY);
+    gl.uniform2f(this.renderProgram.locations.bottomRight, brX, brY);
+    gl.uniform2f(this.renderProgram.locations.containerRatio, crX, crY);
   }
 
   drawQuad() {
-    this.gl.bindVertexArray(this.vao);
     this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, 4);
-    this.gl.bindVertexArray(null);
-  }
-
-  update() {
-    const gl = this.gl;
-    gl.viewport(0, 0, this.resolution, this.resolution);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[this.bufferWriteIndex]);
-    this.bindTexture(this.textures[this.bufferReadIndex], 0);
-
-    gl.useProgram(this.updateProgram.id);
-    this.drawQuad();
-    this.swapBufferIndices();
   }
 
   updateGradient() {
@@ -1737,15 +1801,21 @@ class Ripples {
 
   render() {
     const gl = this.gl;
-    this.updateGradient();
+    const needGrad = this._hasSimData && (this.perturbance !== 0 || this.specularIntensity > 0);
+    if (needGrad) {
+      this.updateGradient();
+    }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(this.renderProgram.id);
+    if (this._lastHasWaves !== needGrad) {
+      gl.uniform1f(this.renderProgram.locations.hasWaves, needGrad ? 1.0 : 0.0);
+      this._lastHasWaves = needGrad;
+    }
     this.bindTexture(this.backgroundTexture, 0);
-    this.bindTexture(this.gradTexture, 1);
+    if (needGrad) this.bindTexture(this.gradTexture, 1);
     this.drawQuad();
   }
 
@@ -1804,62 +1874,71 @@ class Ripples {
     this.lastStepTime = now;
     dt = Math.min(Math.max(dt, 0), MAX_FRAME_MS);
 
-    let steps = 0;
-    if (this.hasActiveRipples) {
-      this.speedAccumulator += dt * this.speed / STEP_MS;
-      steps = Math.min(Math.floor(this.speedAccumulator + STEP_TOLERANCE), MAX_STEPS_PER_FRAME);
-      this.speedAccumulator = Math.min(this.speedAccumulator - steps, 1);
-      for (let i = 0; i < steps; i++) {
-        this.update();
-      }
-    }
-
     const live = this._isLiveMedia();
-    const liveUploaded = live ? this._uploadLiveFrame() : false;
-
-    // Nothing changed since the last presented frame (e.g. 144 Hz display) -> skip the GPU work
-    if (steps > 0 || this.needsRender || liveUploaded) {
-      this.render();
-      this.needsRender = false;
-    }
+    let settled = false;
 
     if (this.hasActiveRipples && this.autoPause) {
       this.activeTime += dt;
+      settled = this.activeTime >= SETTLE_END_MS;
+    }
 
-      if (this.activeTime > SETTLE_DECAY_START_MS) {
-        const decayProgress = Math.min(
-          (this.activeTime - SETTLE_DECAY_START_MS) / (SETTLE_END_MS - SETTLE_DECAY_START_MS), 1.0
-        );
-        const effectiveDamping = this.damping * (1.0 - decayProgress * 0.4);
+    let steps = 0;
+    if (this.hasActiveRipples && !settled) {
+      this.speedAccumulator += dt * this.speed / STEP_MS;
+      steps = Math.min(Math.floor(this.speedAccumulator + STEP_TOLERANCE), MAX_STEPS_PER_FRAME);
+      this.speedAccumulator = Math.min(this.speedAccumulator - steps, 1);
+      if (steps > 0) {
         const gl = this.gl;
+        gl.viewport(0, 0, this.resolution, this.resolution);
         gl.useProgram(this.updateProgram.id);
-        gl.uniform1f(this.updateProgram.locations.damping, effectiveDamping);
-        // Damping only kills velocity, which would freeze a leftover static bump that then
-        // "pops" away on clear. Relaxing the height as well lets it fade out invisibly.
-        gl.uniform1f(this.updateProgram.locations.fade, 1.0 - SETTLE_FADE * decayProgress);
-      }
-
-      if (this.activeTime >= SETTLE_END_MS) {
-        const gl = this.gl;
-        gl.useProgram(this.updateProgram.id);
-        gl.uniform1f(this.updateProgram.locations.damping, this.damping);
-        gl.uniform1f(this.updateProgram.locations.fade, 1.0);
-
-        this.clearRipples();
-        this.render();
-        this.needsRender = false;
-        this.hasActiveRipples = false;
-        this._scheduleRelease();
-        if (!live) {
-          this.isSleeping = true;
-          this.rafId = null;
-          return;
+        gl.activeTexture(gl.TEXTURE0);
+        if (this.autoPause && this.activeTime > SETTLE_DECAY_START_MS) {
+          const decayProgress = Math.min(
+            (this.activeTime - SETTLE_DECAY_START_MS) / (SETTLE_END_MS - SETTLE_DECAY_START_MS), 1.0
+          );
+          gl.uniform1f(this.updateProgram.locations.damping, this.damping * (1.0 - decayProgress * 0.4));
+          // Damping only kills velocity, which would freeze a leftover static bump that then
+          // "pops" away on clear. Relaxing the height as well lets it fade out invisibly.
+          gl.uniform1f(this.updateProgram.locations.fade, 1.0 - SETTLE_FADE * decayProgress);
+        }
+        for (let i = 0; i < steps; i++) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[this.bufferWriteIndex]);
+          gl.bindTexture(gl.TEXTURE_2D, this.textures[this.bufferReadIndex]);
+          this.drawQuad();
+          this.swapBufferIndices();
         }
       }
-    } else if (!this.hasActiveRipples && !live) {
-      this.isSleeping = true;
-      this.rafId = null;
-      return;
+    }
+
+    const liveUploaded = live ? this._uploadLiveFrame() : false;
+
+    if (settled) {
+      const gl = this.gl;
+      gl.useProgram(this.updateProgram.id);
+      gl.uniform1f(this.updateProgram.locations.damping, this.damping);
+      gl.uniform1f(this.updateProgram.locations.fade, 1.0);
+
+      this.clearRipples();
+      this.render();
+      this.needsRender = false;
+      this.hasActiveRipples = false;
+      this._scheduleRelease();
+      if (!live) {
+        this.isSleeping = true;
+        this.rafId = null;
+        return;
+      }
+    } else {
+      // Nothing changed since the last presented frame (e.g. 144 Hz display) -> skip the GPU work
+      if (steps > 0 || this.needsRender || liveUploaded) {
+        this.render();
+        this.needsRender = false;
+      }
+      if (!this.hasActiveRipples && !live) {
+        this.isSleeping = true;
+        this.rafId = null;
+        return;
+      }
     }
 
     this.rafId = requestAnimationFrame(this.step);
@@ -1905,7 +1984,7 @@ class Ripples {
     const elHeight = rect.height || this.canvas.height;
     const longestSide = Math.max(elWidth, elHeight) || 1;
 
-    const effectiveRadius = radius !== undefined ? radius : this.getEffectiveRadius(this.dropRadius);
+    const effectiveRadius = radius !== undefined ? radius : this.getEffectiveRadius(this.dropRadius, elWidth);
     const s = strength !== undefined ? strength : 0.01;
 
     if (this.dropCount >= MAX_QUEUED_DROPS) {
@@ -1943,18 +2022,21 @@ class Ripples {
     }
 
     this.dropCount = 0;
+    this._hasSimData = true;
     this.needsRender = true;
   }
 
-  updateSize() {
+  updateSize(syncMedia = true) {
     if (this.destroyed || !this.canvas) return;
     this._rect = null;
+    if (!this.gl) return;
+
     const rect = this.getRect();
     const style = window.getComputedStyle(this.element);
     this.borderLeft = parseFloat(style.borderLeftWidth) || 0;
     this.borderTop = parseFloat(style.borderTopWidth) || 0;
 
-    this._syncMediaSource();
+    if (syncMedia) this._syncMediaSource();
 
     const dpr = this._getDpr();
     const newWidth = Math.round(rect.width * dpr);
@@ -1984,6 +2066,22 @@ class Ripples {
 
     this.running = false;
     this.hasActiveRipples = false;
+    ++this._loadToken;
+    this._loadingSource = null;
+
+    if (this._prewarmHandle) {
+      if (this._prewarmIsIdle && window.cancelIdleCallback) window.cancelIdleCallback(this._prewarmHandle);
+      else clearTimeout(this._prewarmHandle);
+      this._prewarmHandle = null;
+    }
+    if (this._resizeRaf) {
+      cancelAnimationFrame(this._resizeRaf);
+      this._resizeRaf = null;
+    }
+    if (this._rectRaf) {
+      cancelAnimationFrame(this._rectRaf);
+      this._rectRaf = null;
+    }
 
     if (this.intersectionObserver) {
       this.intersectionObserver.disconnect();
@@ -2042,9 +2140,9 @@ class Ripples {
       delete this.element._ripples;
     } else {
       if (this.isAutoAspectRatio) {
-        this.element.style.display = '';
-        this.element.style.width = '';
-        this.element.style.aspectRatio = '';
+        this.element.style.display = this.originalAutoDisplay || '';
+        this.element.style.width = this.originalAutoWidth || '';
+        this.element.style.aspectRatio = this.originalAutoAspectRatio || '';
       }
       this.element.classList.remove('webgl-ripples');
       this.element.style.position = this.originalPosition || '';
@@ -2122,6 +2220,22 @@ class Ripples {
         this.imageUrl = value;
         this.loadImage();
         break;
+      case 'preset': {
+        const preset = Ripples._resolvePreset(value);
+        if (!preset) break;
+        this.dropRadius = preset.dropRadius;
+        this.specularIntensity = parseSpecular(preset.specular);
+        this._userPerturbance = preset.perturbance;
+        this._userDamping = preset.damping;
+        this.speed = preset.speed;
+        this.applyMotionPreference();
+        if (this.gl && this.renderProgram) {
+          this.gl.useProgram(this.renderProgram.id);
+          this.gl.uniform1f(this.renderProgram.locations.specular, this.specularIntensity);
+        }
+        this.renderSingleFrame();
+        break;
+      }
       default:
         console.warn('[Ripples] set(): unknown or read-only property "' + property + '"');
     }
@@ -2133,6 +2247,7 @@ class Ripples {
       const init = initWebGL2(document.createElement('canvas'));
       Ripples._supported = Boolean(init);
       if (init) {
+        Ripples._glConfig = init.config;
         const lose = init.gl.getExtension('WEBGL_lose_context');
         if (lose) lose.loseContext();
       }
@@ -2155,9 +2270,10 @@ class Ripples {
       (typeof HTMLCollection !== 'undefined' && target instanceof HTMLCollection) || Array.isArray(target)
     );
 
-    if (!target || (typeof target === 'object' && !isCollection)) {
-      return Ripples.autoInit((target && typeof target === 'object') ? target : options);
+    if (target === undefined || (typeof target === 'object' && target !== null && !isCollection)) {
+      return Ripples.autoInit(target || options);
     }
+    if (!target) return [];
 
     const list = typeof target === 'string'
       ? Array.from(document.querySelectorAll(target))

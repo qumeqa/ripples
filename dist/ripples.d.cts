@@ -1,17 +1,21 @@
+type RipplesPreset = 'default' | 'subtle' | 'calm' | 'glossy' | 'viscous';
+
 interface RipplesOptions {
   /** Image or video URL to distort. Default: the element's own media source or CSS background-image. */
   imageUrl?: string | null;
+  /** Named parameter preset applied before individual overrides. Default null. */
+  preset?: RipplesPreset | null;
   /** Simulation grid size (power of two works best). Default 256. */
   resolution?: number;
   /** Drop radius in px for a 1200px-wide element; scales with the element width. Default 40. */
   dropRadius?: number;
-  /** Refraction strength. 0 disables refraction. Default 0.05. */
+  /** Refraction strength. 0 disables refraction. Default 0.04. */
   perturbance?: number;
   /** React to pointer movement / clicks. Default true. */
   interactive?: boolean;
   /** crossOrigin attribute for remote images. Default 'anonymous'. */
   crossOrigin?: string;
-  /** Specular highlight: true = 1.0, or an intensity. Default false. */
+  /** Specular highlight: false/0 disables, true = 1.0, or an intensity. Default 0.2. */
   specular?: boolean | number;
   /** Wave damping, 0.8–0.999. Default 0.975. */
   damping?: number;
@@ -44,7 +48,7 @@ interface RipplesOptions {
 /** Properties that can be changed at runtime with set(). */
 type RipplesSettable =
   | 'dropRadius' | 'perturbance' | 'interactive' | 'crossOrigin'
-  | 'specular' | 'speed' | 'damping' | 'live' | 'imageUrl';
+  | 'specular' | 'speed' | 'damping' | 'live' | 'imageUrl' | 'preset';
 
 interface RipplesEventDetail {
   instance: Ripples;
@@ -57,6 +61,10 @@ declare class Ripples {
   static readonly VERSION: string;
   /** Soft cap on simultaneously live WebGL contexts. Default 8. */
   static maxContexts: number;
+  static readonly PRESETS: Readonly<Record<
+    RipplesPreset,
+    Readonly<Required<Pick<RipplesOptions, 'perturbance' | 'dropRadius' | 'damping' | 'speed' | 'specular'>>>
+  >>;
   static readonly DEFAULTS: Readonly<RipplesOptions>;
 
   /** Whether WebGL 2 with half-float render targets is available (cached). */
@@ -92,7 +100,7 @@ declare class Ripples {
 }
 
 declare namespace Ripples {
-  export type { RipplesOptions, RipplesSettable, RipplesEventDetail, RipplesTarget };
+  export type { RipplesPreset, RipplesOptions, RipplesSettable, RipplesEventDetail, RipplesTarget };
 }
 
 export = Ripples;

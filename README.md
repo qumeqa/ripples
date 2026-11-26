@@ -33,7 +33,7 @@ From JavaScript:
 import Ripples from 'ripples-js';
 
 const [ripples] = Ripples.init('#hero', {
-  perturbance: 0.05,
+  perturbance: 0.04,
   onReady: (instance) => console.log('ready', instance),
   onError: (error) => console.warn(error),
 });
@@ -46,19 +46,20 @@ Or declaratively via HTML (requires `data-auto-init` on the `<script>` tag or ca
 <div class="banner" data-ripples data-ripples-perturbance="0.02"></div>
 ```
 
-Works on `<img>`, `<picture>`, `<video>`, `<canvas>`, or any element with a CSS `background-image`. Options can be passed as `data-ripples-<kebab-case-name>` attributes with automatic JSON parsing (for example, `data-ripples-lazy="false"`). Precedence: defaults < attributes < `options` argument.
+Works on `<img>`, `<picture>`, `<video>`, `<canvas>`, or any element with a CSS `background-image`. Options can be passed as `data-ripples-<kebab-case-name>` attributes with automatic JSON parsing (for example, `data-ripples-lazy="false"` or `data-ripples-preset="calm"`). Precedence: defaults < preset < attributes < `options` argument.
 
 ## Options
 
 | Option | Default | Description |
 |---|---|---|
 | `imageUrl` | from element / `background-image` | Image or video URL (`.mp4`, `.webm`, `.ogv`, `.mov`, `.m4v`, `data:video/*`) to distort |
+| `preset` | `null` | Parameter preset (`'default'`, `'subtle'`, `'calm'`, `'glossy'`, `'viscous'`) applied before individual overrides |
 | `resolution` | `256` | Simulation grid size |
 | `dropRadius` | `40` | Drop radius in px for a 1200 px-wide element (scales with element width) |
-| `perturbance` | `0.05` | Refraction strength; `0` disables refraction |
+| `perturbance` | `0.04` | Refraction strength; `0` disables refraction |
 | `interactive` | `true` | React to pointer and touch input |
 | `crossOrigin` | `'anonymous'` | CORS mode for cross-origin media |
-| `specular` | `false` | Specular highlight: `true` (`1.0`) or intensity |
+| `specular` | `0.2` | Specular highlight: `false`/`0` disables, `true` (`1.0`), or intensity |
 | `damping` | `0.975` | Wave damping, `0.8`–`0.999` |
 | `speed` | `1` | Simulation speed multiplier, minimum `0.1` |
 | `autoPause` | `true` | Sleep the loop once ripples settle (5 s) |
@@ -73,6 +74,23 @@ Works on `<img>`, `<picture>`, `<video>`, `<canvas>`, or any element with a CSS 
 | `onReady` | `null` | `(instance) => void` when media is uploaded and the effect is live |
 | `onError` | `null` | `(error, instance) => void` when WebGL 2 is unavailable, a shader fails, or media fails to load |
 
+## Presets
+
+Presets configure `perturbance`, `dropRadius`, `damping`, `speed`, and `specular` together without touching lifecycle or performance options:
+
+| Preset | `perturbance` | `dropRadius` | `damping` | `speed` | `specular` |
+|---|---|---|---|---|---|
+| `'default'` | `0.04` | `40` | `0.975` | `1` | `0.2` |
+| `'subtle'` | `0.02` | `35` | `0.96` | `0.85` | `false` |
+| `'calm'` | `0.035` | `55` | `0.985` | `0.75` | `0.25` |
+| `'glossy'` | `0.05` | `35` | `0.98` | `1.15` | `0.75` |
+| `'viscous'` | `0.075` | `65` | `0.945` | `0.65` | `0.4` |
+
+```js
+const [ripples] = Ripples.init('#hero', { preset: 'calm', specular: 0.4 });
+ripples.set('preset', 'glossy');
+```
+
 ## API
 
 ```js
@@ -81,10 +99,11 @@ Ripples.init(target?, options?)   // always returns an array; target: selector, 
 Ripples.autoInit(options?)        // initialises every [data-ripples] element without an instance
 Ripples.isSupported()             // is WebGL 2 with half-float render targets available? (cached)
 Ripples.maxContexts = 8           // soft cap on simultaneously live WebGL contexts
+Ripples.PRESETS                   // built-in presets: default, subtle, calm, glossy, viscous
 Ripples.VERSION
 
 r.drop(x, y, radius?, strength?)  // drop at element-relative CSS pixels
-r.set(name, value)                // dropRadius, perturbance, interactive, crossOrigin, specular, speed, damping, live, imageUrl
+r.set(name, value)                // dropRadius, perturbance, interactive, crossOrigin, specular, speed, damping, live, imageUrl, preset
 r.pause() / r.play()
 r.show() / r.hide()
 r.updateSize()

@@ -558,3 +558,135 @@ test('isRemoteUrl accurately checks origin for prefix-matching and protocol-rela
   assert.equal(stats.crossOrigins.at(-1), 'anonymous');
   r.destroy();
 });
+
+test('img activate() loads image and emits ready once (no double load)', async () => {
+  const gl = fakeGL();
+  const { doc, Ripples, stats } = createEnv({ gl, html: '<body><img id="i" src="single.jpg"></body>' });
+  const img = doc.getElementById('i');
+  let ready = 0, evtReady = 0;
+  img.addEventListener('ripples:ready', () => evtReady++);
+  const r = new Ripples(img, { lazy: false, onReady: () => ready++ });
+  await wait(20);
+  assert.equal(stats.loaded.length, 1);
+  assert.equal(ready, 1);
+  assert.equal(evtReady, 1);
+  r.destroy();
+});
+
+test('300x150 element at dpr:1 still initializes size and boundaries', async () => {
+  const gl = fakeGL();
+  const { doc, Ripples } = createEnv({ gl, html: '<body><div id="a" style="background-image:url(x.jpg)"></div></body>' });
+  const div = doc.getElementById('a');
+  div.getBoundingClientRect = () => ({ width: 300, height: 150, left: 0, top: 0, right: 300, bottom: 150 });
+  const r = new Ripples(div, { lazy: false, dpr: 1 });
+  await wait(10);
+  assert.equal(r.canvas.width, 300);
+  assert.equal(r.canvas.height, 150);
+  assert.equal(r.lastClientWidth, 300);
+  assert.equal(r.lastClientHeight, 150);
+  assert.equal(r.boundariesDirty, false);
+  r.destroy();
+});
+
+test('prewarm re-arms if element leaves viewport before idle callback fires', async () => {
+  const { w, doc, Ripples } = createEnv({ gl: fakeGL(), io: true, html: '<body><div id="a"></div></body>' });
+  const r = new Ripples(doc.getElementById('a'), { prewarm: true });
+  w.__io([{ isIntersecting: true }]);
+  w.__io([{ isIntersecting: false }]);
+  await wait(250);
+  assert.equal(r.gl, null, 'does not activate while offscreen');
+  w.__io([{ isIntersecting: true }]);
+  await wait(250);
+  assert.ok(r.gl, 'activates after returning to viewport');
+  r.destroy();
+});
+
+test('init(null) and init("") return [] without running autoInit', () => {
+  const { w, doc, Ripples } = createEnv({ gl: fakeGL(), html: '<body><div id="d" data-ripples></div></body>' });
+  const a = Ripples.init(null);
+  const b = Ripples.init('');
+  assert.ok(w.Array.isArray(a) && a.length === 0);
+  assert.ok(w.Array.isArray(b) && b.length === 0);
+  assert.equal(doc.getElementById('d')._ripples, undefined);
+  assert.equal(Ripples.init().length, 1, 'init() with undefined still runs autoInit');
+});
+
+test('RG16F is preferred over RGBA16F and flat frames skip gradient pass', async () => {
+  const gl = fakeGL();
+  const { doc, Ripples } = createEnv({ gl, html: '<body><div id="a"></div></body>' });
+  const r = new Ripples(doc.getElementById('a'), { lazy: false, imageUrl: 'a.jpg' });
+  assert.equal(r.glConfig.internalFormat, gl.RG16F);
+  await wait(10);
+  const drawsOnFlat = gl.__calls.draw;
+  r.renderSingleFrame();
+  assert.equal(gl.__calls.draw, drawsOnFlat + 1, 'flat frame renders in 1 draw pass (no gradient pass)');
+  r.drop(10, 10);
+  await wait(40);
+  assert.ok(gl.__calls.draw > drawsOnFlat + 2, 'active ripples run simulation + gradient + render passes');
+  r.destroy();
+});
+
+test('isAutoAspectRatio updates on imageUrl change and restores inline styles on destroy', async () => {
+  const gl = fakeGL();
+  const { doc, Ripples } = createEnv({
+    gl,
+    images: { 'wide\\.jpg': [1280, 720], 'square\\.jpg': [400, 400] },
+    html: '<body><div id="a" style="display:inline-block;width:50%"></div></body>',
+  });
+  const div = doc.getElementById('a');
+  const r = new Ripples(div, { lazy: false, imageUrl: 'wide.jpg' });
+  await wait(10);
+  assert.equal(r.isAutoAspectRatio, true);
+  assert.equal(div.style.aspectRatio, '1280 / 720');
+  r.set('imageUrl', 'square.jpg');
+  await wait(10);
+  assert.equal(div.style.aspectRatio, '400 / 400');
+  r.destroy();
+  assert.equal(div.style.display, 'inline-block');
+  assert.equal(div.style.width, '50%');
+  assert.equal(div.style.aspectRatio, '');
+});
+
+test('presets: option, data attribute, precedence, set(), and unknown warning', () => {
+  const { doc, Ripples } = createEnv({
+    gl: fakeGL(),
+    html: '<body><div id="a" data-ripples data-ripples-preset="calm" data-ripples-speed="1.5"></div><div id="b"></div></body>',
+  });
+  assert.equal(Ripples.VERSION, pkg.version);
+  assert.ok(Object.isFrozen(Ripples.PRESETS));
+  assert.equal(Ripples.DEFAULTS.specular, 0.2);
+
+  const [a] = Ripples.autoInit();
+  assert.equal(a.dropRadius, Ripples.PRESETS.calm.dropRadius);
+  assert.equal(a.perturbance, Ripples.PRESETS.calm.perturbance);
+  assert.equal(a.speed, 1.5, 'individual data attribute overrides preset');
+
+  const b = new Ripples(doc.getElementById('b'), { lazy: false, preset: 'glossy', perturbance: 0.08 });
+  assert.equal(b.dropRadius, Ripples.PRESETS.glossy.dropRadius);
+  assert.equal(b.specularIntensity, Ripples.PRESETS.glossy.specular);
+  assert.equal(b.perturbance, 0.08, 'explicit option overrides preset');
+
+  b.set('preset', 'viscous');
+  assert.equal(b.dropRadius, Ripples.PRESETS.viscous.dropRadius);
+  assert.equal(b.perturbance, Ripples.PRESETS.viscous.perturbance);
+  assert.equal(b.damping, Ripples.PRESETS.viscous.damping);
+  assert.equal(b.speed, Ripples.PRESETS.viscous.speed);
+  assert.equal(b.specularIntensity, Ripples.PRESETS.viscous.specular);
+
+  const w0 = console.warn; let msg = '';
+  console.warn = (m) => (msg = String(m));
+  b.set('preset', 'nonexistent');
+  console.warn = w0;
+  assert.match(msg, /Unknown preset/);
+  assert.equal(b.dropRadius, Ripples.PRESETS.viscous.dropRadius, 'unknown preset keeps current values');
+
+  const c = new Ripples(doc.getElementById('a'), { preset: 'subtle' });
+  assert.equal(c.perturbance, Ripples.PRESETS.subtle.perturbance, 'options.preset overrides data attributes');
+  const d = new Ripples(doc.getElementById('a'), { preset: null });
+  assert.equal(d.dropRadius, Ripples.DEFAULTS.dropRadius, 'preset: null cancels data-ripples-preset');
+
+  a.destroy();
+  b.destroy();
+  c.destroy();
+  d.destroy();
+});
