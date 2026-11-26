@@ -50,42 +50,42 @@ Works on `<img>`, `<picture>`, `<video>`, `<canvas>`, or any element with a CSS 
 
 ## Options
 
-| Option | Default | Description |
-|---|---|---|
-| `imageUrl` | from element / `background-image` | Image or video URL (`.mp4`, `.webm`, `.ogv`, `.mov`, `.m4v`, `data:video/*`) to distort |
-| `preset` | `null` | Parameter preset (`'default'`, `'subtle'`, `'calm'`, `'glossy'`, `'viscous'`) applied before individual overrides |
-| `resolution` | `256` | Simulation grid size |
-| `dropRadius` | `30` | Drop radius in px for a 1200 px longest side (scales 0.5×–1.3× with element size) |
-| `perturbance` | `0.05` | Refraction strength; `0` disables refraction |
-| `interactive` | `true` | React to pointer and touch input |
-| `lockTouch` | `false` | Prevent page scrolling while dragging on touchscreens (`touch-action: none`) |
-| `crossOrigin` | `'anonymous'` | CORS mode for cross-origin media |
-| `specular` | `0.2` | Specular highlight: `false`/`0` disables, `true` (`1.0`), or intensity |
-| `damping` | `0.975` | Wave damping, `0.8`–`0.999` |
-| `speed` | `1` | Simulation speed multiplier, minimum `0.1` |
-| `autoPause` | `true` | Sleep the loop once ripples settle (5 s) |
-| `dpr` | `'auto'` | Pixel ratio (`'auto'` is capped at `2`) |
-| `lazy` | `true` | Create the WebGL context on first interaction |
-| `fill` | `true` | For `<img>`, `<picture>`, `<video>`, `<canvas>`: stretch inside wrapper; `false` keeps CSS size |
-| `live` | `'auto'` | Continuous texture updates for `<video>` and `<canvas>`: `'auto'`, `true`, or `false` |
-| `watchTheme` | `false` | Call `refresh()` when `<html>` `class` / `data-theme` or `prefers-color-scheme` changes |
-| `releaseOnIdle` | `true` | Free the WebGL context `releaseDelay` ms after settling |
-| `releaseDelay` | `4000` | Delay before releasing an idle context, in ms |
-| `prewarm` | `false` | Create the context during an idle callback once visible in the viewport |
-| `onReady` | `null` | `(instance) => void` when media is uploaded and the effect is live |
-| `onError` | `null` | `(error, instance) => void` when WebGL 2 is unavailable, a shader fails, or media fails to load |
+| Option | Default | Values | Description |
+|---|---|---|---|
+| imageUrl | from element / `background-image` | URL string, `null` | Image or video URL (`.mp4`, `.webm`, `.ogv`, `.mov`, `.m4v`, `data:video/*`) to distort |
+| preset | `null` | `null`, `default`, `subtle`, `calm`, `glossy`, `viscous` | Parameter preset applied before individual overrides |
+| resolution | `256` | integer `> 0` (power of 2, e.g. `128`–`512`) | Simulation grid size |
+| dropRadius | `30` | `> 0` (typical `10`–`100`) | Drop radius in px for a 1200 px longest side (scales `0.5×`–`1.3×` with element size) |
+| perturbance | `0.05` | number (typical `0`–`0.1`) | Refraction strength; `0` disables refraction |
+| interactive | `true` | `true`, `false` | React to pointer and touch input |
+| lockTouch | `false` | `true`, `false` | Prevent page scrolling while dragging on touchscreens (`touch-action: none`) |
+| crossOrigin | `anonymous` | `anonymous`, `use-credentials`, `''` | CORS mode for cross-origin media |
+| specular | `0.2` | `false`, `true`, or number (typical `0`–`2`) | Specular highlight: `false`/`0` disables, `true` (`1.0`), or intensity |
+| damping | `0.975` | `0.8`–`0.999` | Wave damping |
+| speed | `1` | `>= 0.1` (typical `0.2`–`2.5`) | Simulation speed multiplier |
+| autoPause | `true` | `true`, `false` | Sleep the loop once ripples settle (5 s) |
+| dpr | `auto` | `auto` or number `> 0` | Pixel ratio (`auto` is capped at `2`) |
+| lazy | `true` | `true`, `false` | Create the WebGL context on first interaction |
+| fill | `true` | `true`, `false` | For `<img>`, `<picture>`, `<video>`, `<canvas>`: stretch inside wrapper; `false` keeps CSS size |
+| live | `auto` | `auto`, `true`, `false` | Continuous texture updates for `<video>` and `<canvas>` |
+| watchTheme | `false` | `true`, `false` | Call `refresh()` when `<html>` `class` / `data-theme` or `prefers-color-scheme` changes |
+| releaseOnIdle | `true` | `true`, `false` | Free the WebGL context `releaseDelay` ms after settling |
+| releaseDelay | `4000` | `>= 0` (ms) | Delay before releasing an idle context |
+| prewarm | `false` | `true`, `false` | Create the context during an idle callback once visible in the viewport |
+| onReady | `null` | `(instance) => void`, `null` | Called when media is uploaded and the effect is live |
+| onError | `null` | `(error, instance) => void`, `null` | Called when WebGL 2 is unavailable, a shader fails, or media fails to load |
 
 ## Presets
 
 Presets configure `perturbance`, `dropRadius`, `damping`, `speed`, and `specular` together without touching lifecycle or performance options:
 
-| Preset | `perturbance` | `dropRadius` | `damping` | `speed` | `specular` |
+| Preset | perturbance | dropRadius | damping | speed | specular |
 |---|---|---|---|---|---|
-| `'default'` | `0.05` | `30` | `0.975` | `1` | `0.2` |
-| `'subtle'` | `0.02` | `35` | `0.96` | `0.85` | `false` |
-| `'calm'` | `0.035` | `55` | `0.985` | `0.75` | `0.25` |
-| `'glossy'` | `0.05` | `35` | `0.98` | `1.15` | `0.75` |
-| `'viscous'` | `0.075` | `65` | `0.945` | `0.65` | `0.4` |
+| default | `0.05` | `30` | `0.975` | `1` | `0.2` |
+| subtle | `0.02` | `35` | `0.96` | `0.85` | `false` |
+| calm | `0.035` | `55` | `0.985` | `0.75` | `0.25` |
+| glossy | `0.05` | `35` | `0.98` | `1.15` | `0.75` |
+| viscous | `0.075` | `65` | `0.945` | `0.65` | `0.4` |
 
 ```js
 const [ripples] = Ripples.init('#hero', { preset: 'calm', specular: 0.4 });
