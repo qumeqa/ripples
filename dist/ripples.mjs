@@ -1,4 +1,4 @@
-/*! Ripples.js v1.1.0 | MIT License */
+/*! Ripples.js v1.2.0 | MIT License */
 /**
  * Ripples.js — WebGL 2 water ripple effect for <img>, <picture>, <video>, <canvas>, and CSS backgrounds.
  * Zero dependencies. MIT License.
@@ -418,7 +418,7 @@ fragColor = vec4(bg.rgb + spec * bg.a, bg.a);
 }`;
 
 class Ripples {
-  static VERSION = '1.1.0';
+  static VERSION = '1.2.0';
 
   // Soft cap on simultaneously live WebGL contexts (browsers allow ~16 and silently kill the oldest).
   // When exceeded, the least recently used instance that is not animating gives its context back.
@@ -427,7 +427,7 @@ class Ripples {
   static _tick = 0;
 
   static PRESETS = Object.freeze({
-    default: Object.freeze({ perturbance: 0.04, dropRadius: 40, damping: 0.975, speed: 1, specular: 0.2 }),
+    default: Object.freeze({ perturbance: 0.05, dropRadius: 30, damping: 0.975, speed: 1, specular: 0.2 }),
     subtle:  Object.freeze({ perturbance: 0.02, dropRadius: 35, damping: 0.96,  speed: 0.85, specular: false }),
     calm:    Object.freeze({ perturbance: 0.035, dropRadius: 55, damping: 0.985, speed: 0.75, specular: 0.25 }),
     glossy:  Object.freeze({ perturbance: 0.05, dropRadius: 35, damping: 0.98,  speed: 1.15, specular: 0.75 }),
@@ -438,9 +438,10 @@ class Ripples {
     imageUrl: null,
     preset: null,
     resolution: 256,
-    dropRadius: 40,
-    perturbance: 0.04,
+    dropRadius: 30,
+    perturbance: 0.05,
     interactive: true,
+    lockTouch: false,
     crossOrigin: 'anonymous',
     specular: 0.2,
     damping: 0.975,
@@ -521,13 +522,14 @@ class Ripples {
     };
 
     this.interactive = Boolean(this.options.interactive);
+    this.lockTouch = Boolean(this.options.lockTouch);
     this.resolution = parseInt(this.options.resolution, 10) || 256;
-    this.dropRadius = toPositive(this.options.dropRadius, 40);
+    this.dropRadius = toPositive(this.options.dropRadius, 30);
     this.crossOrigin = this.options.crossOrigin;
     this._explicitImageUrl = Boolean(this.options.imageUrl);
     this.imageUrl = this.options.imageUrl;
     this.specularIntensity = parseSpecular(this.options.specular);
-    this._userPerturbance = toNumber(this.options.perturbance, 0.04);
+    this._userPerturbance = toNumber(this.options.perturbance, 0.05);
     this._userDamping = parseDamping(this.options.damping);
     this.speed = parseSpeed(this.options.speed);
     this.speedAccumulator = 0;
@@ -663,6 +665,9 @@ class Ripples {
 
     this.canvas = this._createCanvas();
     this.element.appendChild(this.canvas);
+
+    this.originalTouchAction = this.element.style.touchAction;
+    this._applyTouchAction();
 
     this.setupPointerEvents();
     this.setupObservers();
@@ -1501,10 +1506,13 @@ class Ripples {
     image.src = this.imageSource;
   }
 
-  getEffectiveRadius(baseRadius, elWidth) {
+  getEffectiveRadius(baseRadius, longestSide) {
     const radius = baseRadius !== undefined ? baseRadius : this.dropRadius;
-    const width = elWidth || this.lastClientWidth || this.element.clientWidth || 1200;
-    const scale = Math.min(Math.max(width / 1200, 0.35), 1.3);
+    const side = longestSide || Math.max(
+      this.lastClientWidth || this.element.clientWidth || 0,
+      this.lastClientHeight || this.element.clientHeight || 0
+    ) || 1200;
+    const scale = Math.min(Math.max(side / 1200, 0.5), 1.3);
     return radius * scale;
   }
 
@@ -1519,6 +1527,13 @@ class Ripples {
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  _applyTouchAction() {
+    if (!this.element) return;
+    this.element.style.touchAction = this.lockTouch && this.interactive
+      ? 'none'
+      : (this.originalTouchAction || '');
   }
 
   setupPointerEvents() {
@@ -1537,7 +1552,8 @@ class Ripples {
       if (hasLast) {
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
-        if (dx * dx + dy * dy < (isTouch ? 256 : 16)) return;
+        const minDistSq = !this.lockTouch && isTouch ? 256 : 16;
+        if (dx * dx + dy * dy < minDistSq) return;
       }
       if (!this.gl && !this.activate()) return;
 
@@ -1558,7 +1574,7 @@ class Ripples {
       lastY = e.clientY;
 
       const rect = this.getRect();
-      const effRadius = this.getEffectiveRadius(this.dropRadius, rect.width);
+      const effRadius = this.getEffectiveRadius(this.dropRadius, Math.max(rect.width, rect.height));
       const effStrength = isTouch ? 0.008 : 0.01;
       this.emitTrail(path, effRadius, effStrength, rect);
     };
@@ -1571,7 +1587,7 @@ class Ripples {
 
       const rect = this.getRect();
       const isTouch = e.pointerType === 'touch';
-      const effRadius = this.getEffectiveRadius(this.dropRadius, rect.width) * (isTouch ? 1.25 : 1.5);
+      const effRadius = this.getEffectiveRadius(this.dropRadius, Math.max(rect.width, rect.height)) * (isTouch ? 1.25 : 1.5);
       const effStrength = isTouch ? 0.09 : 0.14;
       this.queueDrop(
         e.clientX - rect.left - this.borderLeft,
@@ -1597,6 +1613,7 @@ class Ripples {
     this.element.addEventListener('pointermove', onPointerMove, { passive: true });
     this.element.addEventListener('pointerdown', onPointerDown, { passive: true });
     this.element.addEventListener('pointerleave', onPointerLeave, { passive: true });
+    this.element.addEventListener('pointercancel', onPointerLeave, { passive: true });
   }
 
   /**
@@ -1982,9 +1999,10 @@ class Ripples {
     const rect = cachedRect || this.getRect();
     const elWidth = rect.width || this.canvas.width;
     const elHeight = rect.height || this.canvas.height;
-    const longestSide = Math.max(elWidth, elHeight) || 1;
+    const rawSide = Math.max(elWidth, elHeight);
+    const longestSide = rawSide || 1;
 
-    const effectiveRadius = radius !== undefined ? radius : this.getEffectiveRadius(this.dropRadius, elWidth);
+    const effectiveRadius = radius !== undefined ? radius : this.getEffectiveRadius(this.dropRadius, rawSide);
     const s = strength !== undefined ? strength : 0.01;
 
     if (this.dropCount >= MAX_QUEUED_DROPS) {
@@ -2106,8 +2124,10 @@ class Ripples {
       this.element.removeEventListener('pointermove', this._pointerMoveHandler);
       this.element.removeEventListener('pointerdown', this._pointerDownHandler);
       this.element.removeEventListener('pointerleave', this._pointerLeaveHandler);
+      this.element.removeEventListener('pointercancel', this._pointerLeaveHandler);
       this.element.removeEventListener('pointerenter', this._pointerEnterHandler);
     }
+    this.element.style.touchAction = this.originalTouchAction || '';
 
     if (this._imgLoadHandler && this.imgElement) {
       this.imgElement.removeEventListener('load', this._imgLoadHandler);
@@ -2190,8 +2210,15 @@ class Ripples {
         this.renderSingleFrame();
         break;
       case 'interactive':
+        this.interactive = Boolean(value);
+        this._applyTouchAction();
+        break;
+      case 'lockTouch':
+        this.lockTouch = Boolean(value);
+        this._applyTouchAction();
+        break;
       case 'crossOrigin':
-        this[property] = value;
+        this.crossOrigin = value;
         break;
       case 'specular':
         this.specularIntensity = parseSpecular(value);

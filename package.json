@@ -1,6 +1,6 @@
 {
   "name": "ripples-js",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "WebGL 2 water ripple effect for images and CSS backgrounds. Zero dependencies.",
   "keywords": ["webgl", "webgl2", "ripples", "water", "ripple", "effect", "image", "shader"],
   "author": "Andrei Prokin",

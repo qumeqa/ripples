@@ -36,6 +36,7 @@
       --accent-light: #121212;
       --green-light: #15803d;
       --green-ink-light: #ffffff;
+      --blue-light: #0284c7;
 
       --bg-dark: #000000;
       --surface-dark: #1c1c1e;
@@ -45,6 +46,7 @@
       --accent-dark: #f5f5f5;
       --green-dark: #22c55e;
       --green-ink-dark: #071a0e;
+      --blue-dark: #38bdf8;
 
       --caption-ink: #ffffff;
       --caption-shadow: rgba(0, 0, 0, 0.65);
@@ -61,6 +63,7 @@
       --accent: var(--accent-light);
       --green: var(--green-light);
       --green-ink: var(--green-ink-light);
+      --blue: var(--blue-light);
     }
 
     @media (prefers-color-scheme: dark) {
@@ -73,6 +76,7 @@
         --accent: var(--accent-dark);
         --green: var(--green-dark);
         --green-ink: var(--green-ink-dark);
+        --blue: var(--blue-dark);
       }
     }
 
@@ -86,6 +90,7 @@
         --accent: light-dark(var(--accent-light), var(--accent-dark));
         --green: light-dark(var(--green-light), var(--green-dark));
         --green-ink: light-dark(var(--green-ink-light), var(--green-ink-dark));
+        --blue: light-dark(var(--blue-light), var(--blue-dark));
       }
     }
 
@@ -226,7 +231,7 @@
     .copy-icon--check {
       opacity: 0;
       transform: scale(0.7);
-      color: var(--green);
+      color: var(--blue);
     }
 
     .copy-icon--check polyline {
@@ -476,8 +481,11 @@
       opacity: 0.84;
     }
 
-    button:focus-visible,
-    .gh-btn:focus-visible,
+    button,
+    a {
+      outline: none;
+    }
+
     .file-btn:focus-within,
     .preset-select:focus-visible,
     input[type="range"]:focus-visible,
@@ -664,7 +672,7 @@
 
     .preset-row {
       gap: 8px;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
 
     .preset-select,
@@ -890,7 +898,8 @@
     }
 
     .tip {
-      max-width: 260px;
+      width: max-content;
+      max-width: min(260px, calc(100vw - 10px));
       padding: 9px 12px;
       font: inherit;
       font-size: 13px;
@@ -915,9 +924,15 @@
     @supports (position-area: block-end) {
       .tip {
         inset: auto;
-        margin: 6px 0 0;
+        margin: 6px 5px;
         position-area: block-end span-inline-start;
         position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+      }
+
+      @media (max-width: 919px) {
+        .tip {
+          position-area: block-end span-inline-end;
+        }
       }
     }
 
@@ -1113,7 +1128,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 14px 20px;
+      padding: 20px;
       background: var(--surface);
     }
   </style>
@@ -1205,9 +1220,9 @@
               <button type="button" class="info-btn mono" interestfor="tip-perturbance" popovertarget="tip-perturbance" popovertargetaction="show" aria-label="About Perturbance">i</button>
               <div id="tip-perturbance" class="tip" popover="hint">Strength of wave refraction. Set to 0 to disable distortion.</div>
             </span>
-            <output class="mono" for="perturbance" id="val-perturbance">0.04</output>
+            <output class="mono" for="perturbance" id="val-perturbance">0.05</output>
           </div>
-          <input type="range" id="perturbance" min="0" max="0.1" step="0.005" value="0.04">
+          <input type="range" id="perturbance" min="0" max="0.1" step="0.005" value="0.05">
         </div>
 
         <div class="row">
@@ -1217,9 +1232,9 @@
               <button type="button" class="info-btn mono" interestfor="tip-dropRadius" popovertarget="tip-dropRadius" popovertargetaction="show" aria-label="About Drop radius">i</button>
               <div id="tip-dropRadius" class="tip" popover="hint">Radius in pixels of ripples created by pointer movement and clicks.</div>
             </span>
-            <output class="mono" for="dropRadius" id="val-dropRadius">40</output>
+            <output class="mono" for="dropRadius" id="val-dropRadius">30</output>
           </div>
-          <input type="range" id="dropRadius" min="10" max="100" step="1" value="40">
+          <input type="range" id="dropRadius" min="10" max="100" step="1" value="30">
         </div>
 
         <div class="row">
@@ -1274,6 +1289,11 @@
           <label><input type="checkbox" id="autoPause" checked> Auto pause</label>
           <button type="button" class="info-btn mono" interestfor="tip-autoPause" popovertarget="tip-autoPause" popovertargetaction="show" aria-label="About Auto pause">i</button>
           <div id="tip-autoPause" class="tip" popover="hint">Sleeps the render loop once ripples settle (5 s).</div>
+        </div>
+        <div class="check-row">
+          <label><input type="checkbox" id="lockTouch"> Lock touch</label>
+          <button type="button" class="info-btn mono" interestfor="tip-lockTouch" popovertarget="tip-lockTouch" popovertargetaction="show" aria-label="About Lock touch">i</button>
+          <div id="tip-lockTouch" class="tip" popover="hint">Prevents page scrolling while dragging across the surface on touchscreens.</div>
         </div>
       </section>
 
@@ -1356,7 +1376,7 @@
       <div class="docs-block">
         <h2 class="mono">HTML</h2>
         <button type="button" class="copy-block" command="--copy" commandfor="cmd-html">
-          <span class="docs-code mono"><code id="cmd-html">&lt;img src="hero.jpg" data-ripples alt=""&gt;</code></span>
+          <span class="docs-code mono"><code id="cmd-html">&lt;img src="ripples.jpg" data-ripples&gt;</code></span>
           <span class="copy-icons" aria-hidden="true">
             <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
@@ -1374,9 +1394,7 @@
         <button type="button" class="copy-block" command="--copy" commandfor="cmd-js">
           <span class="docs-code mono"><code id="cmd-js">import Ripples from 'ripples-js';
 
-Ripples.init('#hero', {
-  perturbance: 0.04,
-});</code></span>
+Ripples.init('#ripples');</code></span>
           <span class="copy-icons" aria-hidden="true">
             <svg class="copy-icon copy-icon--copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
@@ -1729,6 +1747,7 @@ Ripples.init('#hero', {
           speed: +document.getElementById('speed').value,
           specular: +document.getElementById('specular').value,
           interactive: document.getElementById('interactive').checked,
+          lockTouch: document.getElementById('lockTouch').checked,
           live: document.getElementById('live').checked ? 'auto' : false,
           autoPause: document.getElementById('autoPause').checked,
           onReady: fitMedia,
@@ -1921,6 +1940,9 @@ Ripples.init('#hero', {
       document.getElementById('interactive').addEventListener('change', (e) => {
         if (instance) instance.set('interactive', e.target.checked);
       });
+      document.getElementById('lockTouch').addEventListener('change', (e) => {
+        if (instance) instance.set('lockTouch', e.target.checked);
+      });
       document.getElementById('live').addEventListener('change', (e) => {
         if (instance) instance.set('live', e.target.checked ? 'auto' : false);
       });
@@ -1956,7 +1978,7 @@ Ripples.init('#hero', {
       });
 
       document.getElementById('btn-reset').addEventListener('click', () => {
-        const defaults = { perturbance: '0.04', dropRadius: '40', damping: '0.975', speed: '1', specular: '0.2' };
+        const defaults = { perturbance: '0.05', dropRadius: '30', damping: '0.975', speed: '1', specular: '0.2' };
         for (const [k, v] of Object.entries(defaults)) {
           const input = document.getElementById(k);
           input.value = v;
@@ -1964,6 +1986,7 @@ Ripples.init('#hero', {
         }
         syncPresetSelect();
         document.getElementById('interactive').checked = true;
+        document.getElementById('lockTouch').checked = false;
         document.getElementById('live').checked = true;
         document.getElementById('autoPause').checked = true;
         mount();

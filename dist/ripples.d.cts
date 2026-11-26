@@ -7,12 +7,14 @@ interface RipplesOptions {
   preset?: RipplesPreset | null;
   /** Simulation grid size (power of two works best). Default 256. */
   resolution?: number;
-  /** Drop radius in px for a 1200px-wide element; scales with the element width. Default 40. */
+  /** Drop radius in px for an element with a 1200px longest side; scales 0.5x–1.3x with element size. Default 30. */
   dropRadius?: number;
-  /** Refraction strength. 0 disables refraction. Default 0.04. */
+  /** Refraction strength. 0 disables refraction. Default 0.05. */
   perturbance?: number;
   /** React to pointer movement / clicks. Default true. */
   interactive?: boolean;
+  /** Prevent page scrolling while dragging on touchscreens (sets touch-action: none). Default false. */
+  lockTouch?: boolean;
   /** crossOrigin attribute for remote images. Default 'anonymous'. */
   crossOrigin?: string;
   /** Specular highlight: false/0 disables, true = 1.0, or an intensity. Default 0.2. */
@@ -47,7 +49,7 @@ interface RipplesOptions {
 
 /** Properties that can be changed at runtime with set(). */
 type RipplesSettable =
-  | 'dropRadius' | 'perturbance' | 'interactive' | 'crossOrigin'
+  | 'dropRadius' | 'perturbance' | 'interactive' | 'lockTouch' | 'crossOrigin'
   | 'specular' | 'speed' | 'damping' | 'live' | 'imageUrl' | 'preset';
 
 interface RipplesEventDetail {

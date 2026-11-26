@@ -1,10 +1,11 @@
 import Ripples, { RipplesOptions, RipplesPreset } from '../types/ripples';
 
 const preset: RipplesPreset = 'calm';
-const opts: RipplesOptions = { perturbance: 0, lazy: false, live: 'auto', preset, onError: (e, r) => { e.message; r.supported; } };
+const opts: RipplesOptions = { perturbance: 0, lazy: false, live: 'auto', lockTouch: true, preset, onError: (e, r) => { e.message; r.supported; } };
 const [r] = Ripples.init('#hero', opts);
 r.set('perturbance', 0.05);
 r.set('live', false);
+r.set('lockTouch', false);
 r.set('preset', 'glossy');
 const calmDropRadius: number = Ripples.PRESETS.calm.dropRadius;
 r.drop(10, 10, 30, 0.1);

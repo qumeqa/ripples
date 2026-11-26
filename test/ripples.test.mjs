@@ -84,9 +84,9 @@ test('perturbance: 0 is honoured (data attribute, option, set())', () => {
 test('dropRadius must stay positive', () => {
   const { doc, Ripples } = createEnv({ gl: fakeGL(), html: '<body><div id="a"></div></body>' });
   const r = new Ripples(doc.getElementById('a'), { dropRadius: 0 });
-  assert.equal(r.dropRadius, 40);
+  assert.equal(r.dropRadius, 30);
   r.set('dropRadius', -5);
-  assert.equal(r.dropRadius, 40);
+  assert.equal(r.dropRadius, 30);
 });
 
 test('init() always returns an array; autoInit finds [data-ripples]', () => {
@@ -689,4 +689,40 @@ test('presets: option, data attribute, precedence, set(), and unknown warning', 
   b.destroy();
   c.destroy();
   d.destroy();
+});
+
+test('lockTouch: disabled by default, toggles touch-action: none, and restores on destroy', () => {
+  const { doc, Ripples } = createEnv({ gl: fakeGL(), html: '<body><div id="a"></div><div id="b"></div></body>' });
+  const a = doc.getElementById('a');
+  const b = doc.getElementById('b');
+  a.style.touchAction = 'pan-y';
+
+  const ra = new Ripples(a);
+  assert.equal(ra.lockTouch, false);
+  assert.equal(a.style.touchAction, 'pan-y');
+  ra.set('lockTouch', true);
+  assert.equal(a.style.touchAction, 'none');
+  ra.set('interactive', false);
+  assert.equal(a.style.touchAction, 'pan-y', 'disabling interactive releases touch-action lock');
+  ra.set('interactive', true);
+  assert.equal(a.style.touchAction, 'none');
+  ra.destroy();
+  assert.equal(a.style.touchAction, 'pan-y');
+
+  const rb = new Ripples(b, { lockTouch: true });
+  assert.equal(b.style.touchAction, 'none');
+  rb.destroy();
+  assert.equal(b.style.touchAction, '');
+});
+
+test('getEffectiveRadius scales symmetrically by longest side and clamps to [0.5, 1.3]', () => {
+  const { doc, Ripples } = createEnv({ gl: fakeGL(), html: '<body><div id="a"></div></body>' });
+  const r = new Ripples(doc.getElementById('a'));
+  const landscape = r.getEffectiveRadius(30, Math.max(844, 390));
+  const portrait = r.getEffectiveRadius(30, Math.max(390, 844));
+  assert.equal(landscape, portrait);
+  assert.ok(Math.abs(portrait - 30 * (844 / 1200)) < 1e-9);
+  assert.equal(r.getEffectiveRadius(30, 200), 15);
+  assert.equal(r.getEffectiveRadius(30, 2400), 39);
+  r.destroy();
 });
