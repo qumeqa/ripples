@@ -4,14 +4,14 @@
 
 # Ripples.js
 
-WebGL 2 water ripple effect for `<img>`, `<picture>`, `<video>`, `<canvas>`, and CSS backgrounds. Zero dependencies, ~48 KB minified.
+Add an interactive WebGL 2 water ripple effect to images, videos, canvases, and CSS backgrounds. Zero dependencies, ~48 KB minified.
 
 **[Live Demo](https://qumeqa.github.io/ripples/)** · **Browser support:** Chrome 72+, Firefox 75+, Safari 15+
 
-- **Lazy WebGL:** creates the context on first interaction rather than on page load.
-- **Zero idle overhead:** sleeps once ripples settle (0% CPU/GPU) and releases the context shortly after.
-- **Accessible & CSP-safe:** respects `prefers-reduced-motion` and styles only via CSSOM (no `<style>` tags injected).
-- **Graceful fallback:** leaves the DOM untouched when WebGL 2 is unavailable.
+- **Zero dependencies:** vanilla ES module & UMD bundle with TypeScript types — no jQuery required.
+- **Lazy & lightweight:** creates the WebGL context on first interaction, sleeps when ripples settle (0% CPU/GPU), and releases idle contexts automatically.
+- **Broad media support:** works with `<img>`, `<picture>`, `<video>`, `<canvas>`, SVG, and CSS `background-image`.
+- **Accessible & CSP-safe:** respects `prefers-reduced-motion`, leaves the DOM untouched if WebGL 2 is unavailable, and injects no `<style>` tags.
 
 ## Installation
 
@@ -113,6 +113,10 @@ npm run build       # src/ripples.js -> dist/
 npm test            # node:test + jsdom
 npm run typecheck   # TypeScript strict check
 ```
+
+## Credits
+
+Inspired by [sirxemic/jquery.ripples](https://github.com/sirxemic/jquery.ripples) — rewritten from scratch in vanilla JavaScript for WebGL 2.
 
 ## License
 

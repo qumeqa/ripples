@@ -1,0 +1,27 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Ensure npm >= 11.5.1 for OIDC Trusted Publishing
+        run: npm install -g npm@^11.5.1
+
+      - run: npm ci
+      - run: npm publish --access public
