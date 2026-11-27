@@ -15,8 +15,8 @@ interface RipplesOptions {
   interactive?: boolean;
   /** Prevent page scrolling while dragging on touchscreens (sets touch-action: none). Default false. */
   lockTouch?: boolean;
-  /** crossOrigin attribute for remote images. Default 'anonymous'. */
-  crossOrigin?: string;
+  /** crossOrigin attribute for remote media, or null to disable. Default 'anonymous'. */
+  crossOrigin?: string | null;
   /** Specular highlight: false/0 disables, true = 1.0, or an intensity. Default 0.2. */
   specular?: boolean | number;
   /** Wave damping, 0.8–0.999. Default 0.975. */

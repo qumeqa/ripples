@@ -59,7 +59,7 @@ Works on `<img>`, `<picture>`, `<video>`, `<canvas>`, or any element with a CSS 
 | perturbance | `0.05` | number (typical `0`–`0.1`) | Refraction strength; `0` disables refraction |
 | interactive | `true` | `true`, `false` | React to pointer and touch input |
 | lockTouch | `false` | `true`, `false` | Prevent page scrolling while dragging on touchscreens (`touch-action: none`) |
-| crossOrigin | `anonymous` | `anonymous`, `use-credentials`, `''` | CORS mode for cross-origin media |
+| crossOrigin | `anonymous` | `anonymous`, `use-credentials`, `null` | CORS mode for cross-origin media (`null` disables) |
 | specular | `0.2` | `false`, `true`, or number (typical `0`–`2`) | Specular highlight: `false`/`0` disables, `true` (`1.0`), or intensity |
 | damping | `0.975` | `0.8`–`0.999` | Wave damping |
 | speed | `1` | `>= 0.1` (typical `0.2`–`2.5`) | Simulation speed multiplier |
