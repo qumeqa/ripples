@@ -1,8 +1,8 @@
 <h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.png">
-    <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.png" alt="Ripples.js" width="220">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.svg">
+    <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.svg" alt="Ripples.js" width="220">
   </picture>
 </h1>
 
