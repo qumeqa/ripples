@@ -11,7 +11,7 @@ Add an interactive WebGL 2 water ripple effect to images, videos, canvases, and 
 **[Live Demo](https://qumeqa.github.io/ripples/)** · **Browser support:** Chrome 72+, Firefox 75+, Safari 15+
 
 <p>
-  <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/demo.webp" alt="Ripples.js interactive demo" width="720">
+  <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/demo.webp" alt="Ripples.js interactive demo" width="100%">
 </p>
 
 ## Why Ripples.js?
