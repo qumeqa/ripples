@@ -1,4 +1,10 @@
-# <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo.png" alt="Ripples.js logo" width="32" align="absmiddle"> Ripples.js
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.png">
+    <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.png" alt="Ripples.js" width="220">
+  </picture>
+</h1>
 
 Add an interactive WebGL 2 water ripple effect to images, videos, canvases, and CSS backgrounds. Zero dependencies, ~48 KB minified.
 
