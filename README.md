@@ -1,17 +1,13 @@
-<h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.svg">
-    <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/logo-wordmark-light.svg" alt="Ripples.js" width="220">
-  </picture>
-</h1>
+# Ripples.js
 
 Add an interactive WebGL 2 water ripple effect to images, videos, canvases, and CSS backgrounds. Zero dependencies, ~48 KB minified.
 
 **[Live Demo](https://qumeqa.github.io/ripples/)** · **Browser support:** Chrome 72+, Firefox 75+, Safari 15+
 
 <p>
-  <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/demo.webp" alt="Ripples.js interactive demo" width="100%">
+  <a href="https://github.com/qumeqa/ripples">
+    <img src="https://raw.githubusercontent.com/qumeqa/ripples/main/assets/demo.webp" alt="Ripples.js — WebGL 2 water ripple effect" width="100%">
+  </a>
 </p>
 
 ## Why Ripples.js?
